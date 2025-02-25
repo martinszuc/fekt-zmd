@@ -10,16 +10,14 @@ public class Process {
     private BufferedImage image;
     private int[][] red, green, blue;
     private Matrix Y, Cb, Cr;
-    private boolean isYCbCrConverted = false; // Tracks if conversion has been done
+    private boolean isYCbCrConverted = false;
 
     public Process(BufferedImage image) {
         this.image = image;
         loadRGBArrays();
     }
 
-    /**
-     * Extract RGB channels into arrays.
-     */
+    // Extracts RGB channels into arrays.
     private void loadRGBArrays() {
         int width = image.getWidth();
         int height = image.getHeight();
@@ -38,10 +36,7 @@ public class Process {
         }
     }
 
-    /**
-     * Convert RGB to YCbCr using ColorTransform.
-     * (Stores Y, Cb, Cr matrices in memory.)
-     */
+    // Converts RGB to YCbCr.
     public void convertToYCbCr() {
         Matrix[] result = ColorTransform.convertOriginalRGBtoYcBcR(red, green, blue);
         Y = result[0];
@@ -50,17 +45,11 @@ public class Process {
         isYCbCrConverted = true;
     }
 
-    /**
-     * Returns if YCbCr conversion has been performed.
-     */
     public boolean isYCbCrConverted() {
         return isYCbCrConverted;
     }
 
-    /**
-     * Convert YCbCr back to RGB using ColorTransform.
-     * (Updates the stored RGB arrays.)
-     */
+    // Converts YCbCr back to RGB.
     public void convertToRGB() {
         Object[] result = ColorTransform.convertModifiedYcBcRtoRGB(Y, Cb, Cr);
         red = (int[][]) result[0];
@@ -68,9 +57,7 @@ public class Process {
         blue = (int[][]) result[2];
     }
 
-    /**
-     * Return a BufferedImage based on the current RGB arrays.
-     */
+    // Returns a BufferedImage from the current RGB arrays.
     public BufferedImage getRGBImage() {
         int width = red[0].length;
         int height = red.length;
@@ -87,10 +74,7 @@ public class Process {
         return result;
     }
 
-    /**
-     * Get an image of a single RGB channel.
-     * channelType should be "RED", "GREEN", or "BLUE".
-     */
+    // Returns a BufferedImage for a single RGB channel.
     public BufferedImage getChannelImage(int[][] channel, String channelType) {
         int width = channel[0].length;
         int height = channel.length;
@@ -110,17 +94,13 @@ public class Process {
                         b = value;
                         break;
                 }
-                int rgb = (r << 16) | (g << 8) | b;
-                result.setRGB(x, y, rgb);
+                result.setRGB(x, y, (r << 16) | (g << 8) | b);
             }
         }
         return result;
     }
 
-    /**
-     * Get an image of a single YCbCr channel.
-     * This method always creates a grayscale image.
-     */
+    // Returns a grayscale image for a YCbCr channel.
     public BufferedImage getChannelImage(Matrix channel) {
         if (channel == null) return null;
         int width = channel.getColumnDimension();
@@ -131,7 +111,6 @@ public class Process {
             for (int x = 0; x < width; x++) {
                 int value = (int) Math.round(array[y][x]);
                 value = Math.max(0, Math.min(255, value));
-                // Always use grayscale (R=G=B)
                 result.setRGB(x, y, new Color(value, value, value).getRGB());
             }
         }
@@ -145,18 +124,23 @@ public class Process {
     public int[][] getRed() {
         return red;
     }
+
     public int[][] getGreen() {
         return green;
     }
+
     public int[][] getBlue() {
         return blue;
     }
+
     public Matrix getY() {
         return Y;
     }
+
     public Matrix getCb() {
         return Cb;
     }
+
     public Matrix getCr() {
         return Cr;
     }
