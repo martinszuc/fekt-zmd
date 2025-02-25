@@ -14,18 +14,18 @@
     </properties>
 
     <dependencies>
-        <!-- JavaFX, zaklad celeho rozhrani -->
+        <!-- JavaFX Controls -->
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
-            <version>17.0.10</version>
+            <version>19</version>
         </dependency>
 
-        <!-- JavaFX, modul pro nacteni FXML souboru -->
+        <!-- JavaFX FXML -->
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-fxml</artifactId>
-            <version>17.0.10</version>
+            <version>19</version>
         </dependency>
 
         <!-- Jama Matrix -->
@@ -35,12 +35,11 @@
             <version>1.0.3</version>
         </dependency>
 
-
-        <!-- Knihovna pro testovaci kod -->
+        <!-- JUnit 5 for Testing -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
-            <version>RELEASE</version>
+            <version>5.8.1</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
