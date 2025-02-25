@@ -1,0 +1,52 @@
+# Ignore IntelliJ IDEA specific files
+.idea/
+*.iml
+*.iws
+workspace.xml
+tasks.xml
+usage.statistics.xml
+dictionaries
+shelf/
+
+# Ignore build and target directories
+/target/
+/build/
+
+# Ignore Maven wrapper files
+.mvn/
+!/.mvn/wrapper/maven-wrapper.jar
+
+# Ignore log files
+*.log
+
+# Ignore compiled classes
+*.class
+
+# Ignore temporary files
+*.tmp
+*.bak
+*.swp
+*.swo
+*.DS_Store
+
+# Ignore generated files
+gen/
+
+# Ignore test reports
+/test-output/
+/surefire-reports/
+
+# Ignore Java-specific files
+*.jar
+*.war
+*.ear
+
+# Ignore OS-specific files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Ignore Scene Builder files if not needed
+/*.fxml~ # Backup files
