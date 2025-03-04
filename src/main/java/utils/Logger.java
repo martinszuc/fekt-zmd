@@ -94,16 +94,4 @@ public class Logger {
         if (!isInitialized) init();
         logger.fine(message);
     }
-
-    /**
-     * Format file size in human-readable format
-     * @param bytes Size in bytes
-     * @return Formatted string (e.g., "1.25 MB")
-     */
-    public static String formatSize(long bytes) {
-        if (bytes < 1024) return bytes + " B";
-        int exp = (int) (Math.log(bytes) / Math.log(1024));
-        String pre = "KMGTPE".charAt(exp-1) + "";
-        return String.format("%.2f %sB", bytes / Math.pow(1024, exp), pre);
-    }
 }

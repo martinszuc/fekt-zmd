@@ -179,6 +179,9 @@ public class Process {
         // Log new dimensions
         Logger.info("After downsampling - Cb: " + Cb.getRowDimension() + "x" + Cb.getColumnDimension() +
                 ", Cr: " + Cr.getRowDimension() + "x" + Cr.getColumnDimension());
+
+        long endTime = System.currentTimeMillis();
+        Logger.info("Downsampling completed in " + (endTime - startTime) + "ms");
     }
 
     public void upSample(SamplingType samplingType) {
