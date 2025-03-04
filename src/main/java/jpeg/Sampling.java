@@ -2,43 +2,134 @@ package jpeg;
 
 import Jama.Matrix;
 import enums.SamplingType;
+import utils.Logger;
 
 public class Sampling {
 
     public static Matrix sampleDown(Matrix inputMatrix, SamplingType samplingType) {
-        if (inputMatrix == null) return null;
+        if (inputMatrix == null) {
+            Logger.warning("NULL matrix passed to sampleDown");
+            return null;
+        }
+
+        int originalRows = inputMatrix.getRowDimension();
+        int originalCols = inputMatrix.getColumnDimension();
+        Logger.info("Starting downsampling operation: " + samplingType +
+                " on matrix " + originalRows + "x" + originalCols);
+
+        Matrix result;
+        long startTime = System.currentTimeMillis();
 
         switch (samplingType) {
             case S_4_4_4:
-                return inputMatrix.copy();
+                // 4:4:4 - No subsampling
+                result = inputMatrix.copy();
+                Logger.info("4:4:4 sampling - No downsampling performed (copied original)");
+                break;
+
             case S_4_2_2:
-                return horizontalDownsample(inputMatrix);
+                // 4:2:2 - Horizontal subsampling by factor of 2
+                result = horizontalDownsample(inputMatrix);
+                Logger.info("4:2:2 sampling - Horizontal downsampling by factor of 2");
+                break;
+
             case S_4_2_0:
+                // 4:2:0 - Horizontal and vertical subsampling by factor of 2
                 Matrix horizontalDownsampled = horizontalDownsample(inputMatrix);
-                return verticalDownsample(horizontalDownsampled);
+                result = verticalDownsample(horizontalDownsampled);
+                Logger.info("4:2:0 sampling - Horizontal and vertical downsampling by factor of 2");
+                break;
+
             case S_4_1_1:
-                return horizontalDownsample4to1(inputMatrix);
+                // 4:1:1 - Horizontal subsampling by factor of 4
+                result = horizontalDownsample4to1(inputMatrix);
+                Logger.info("4:1:1 sampling - Horizontal downsampling by factor of 4");
+                break;
+
             default:
-                return inputMatrix.copy();
+                result = inputMatrix.copy();
+                Logger.warning("Unknown sampling type " + samplingType + ", no downsampling performed");
+                break;
         }
+
+        long endTime = System.currentTimeMillis();
+        int newRows = result.getRowDimension();
+        int newCols = result.getColumnDimension();
+
+        // Calculate size reduction percentage
+        int originalSize = originalRows * originalCols;
+        int newSize = newRows * newCols;
+        double reductionPercent = 100.0 * (originalSize - newSize) / originalSize;
+
+        Logger.info("Downsampling completed in " + (endTime - startTime) + "ms");
+        Logger.info("Original size: " + originalRows + "x" + originalCols + " = " + originalSize + " pixels");
+        Logger.info("New size: " + newRows + "x" + newCols + " = " + newSize + " pixels");
+        Logger.info("Size reduction: " + String.format("%.2f%%", reductionPercent));
+
+        return result;
     }
 
     public static Matrix sampleUp(Matrix inputMatrix, SamplingType samplingType) {
-        if (inputMatrix == null) return null;
+        if (inputMatrix == null) {
+            Logger.warning("NULL matrix passed to sampleUp");
+            return null;
+        }
+
+        int originalRows = inputMatrix.getRowDimension();
+        int originalCols = inputMatrix.getColumnDimension();
+        Logger.info("Starting upsampling operation: " + samplingType +
+                " on matrix " + originalRows + "x" + originalCols);
+
+        Matrix result;
+        long startTime = System.currentTimeMillis();
 
         switch (samplingType) {
             case S_4_4_4:
-                return inputMatrix.copy();
+                // 4:4:4 - No subsampling
+                result = inputMatrix.copy();
+                Logger.info("4:4:4 sampling - No upsampling performed (copied original)");
+                break;
+
             case S_4_2_2:
-                return horizontalUpsample(inputMatrix);
+                // 4:2:2 - Horizontal upsampling by factor of 2
+                result = horizontalUpsample(inputMatrix);
+                Logger.info("4:2:2 sampling - Horizontal upsampling by factor of 2");
+                break;
+
             case S_4_2_0:
+                // 4:2:0 - Vertical then horizontal upsampling by factor of 2
                 Matrix verticalUpsampled = verticalUpsample(inputMatrix);
-                return horizontalUpsample(verticalUpsampled);
+                result = horizontalUpsample(verticalUpsampled);
+                Logger.info("4:2:0 sampling - Vertical and horizontal upsampling by factor of 2");
+                break;
+
             case S_4_1_1:
-                return horizontalUpsample4to1(inputMatrix);
+                // 4:1:1 - Horizontal upsampling by factor of 4
+                result = horizontalUpsample4to1(inputMatrix);
+                Logger.info("4:1:1 sampling - Horizontal upsampling by factor of 4");
+                break;
+
             default:
-                return inputMatrix.copy();
+                result = inputMatrix.copy();
+                Logger.warning("Unknown sampling type " + samplingType + ", no upsampling performed");
+                break;
         }
+
+        long endTime = System.currentTimeMillis();
+        int newRows = result.getRowDimension();
+        int newCols = result.getColumnDimension();
+
+        // Calculate size increase percentage
+        int originalSize = originalRows * originalCols;
+        int newSize = newRows * newCols;
+        double increasePercent = 100.0 * (newSize - originalSize) / originalSize;
+
+        Logger.info("Upsampling completed in " + (endTime - startTime) + "ms");
+        Logger.info("Original size: " + originalRows + "x" + originalCols + " = " + originalSize + " pixels");
+        Logger.info("New size: " + newRows + "x" + newCols + " = " + newSize + " pixels");
+        Logger.info("Size increase: " + String.format("%.2f%%", increasePercent));
+
+        return result;
     }
 
     private static Matrix horizontalDownsample(Matrix matrix) {
@@ -46,10 +137,13 @@ public class Sampling {
         int cols = matrix.getColumnDimension();
         int newCols = cols / 2;
 
+        Logger.debug("Horizontal downsampling: " + rows + "x" + cols + " -> " + rows + "x" + newCols);
+
         Matrix result = new Matrix(rows, newCols);
 
         for (int i = 0; i < rows; i++) {
             for (int j = 0; j < newCols; j++) {
+                // Could also average adjacent pixels here for better quality
                 result.set(i, j, matrix.get(i, j * 2));
             }
         }
@@ -62,10 +156,13 @@ public class Sampling {
         int cols = matrix.getColumnDimension();
         int newRows = rows / 2;
 
+        Logger.debug("Vertical downsampling: " + rows + "x" + cols + " -> " + newRows + "x" + cols);
+
         Matrix result = new Matrix(newRows, cols);
 
         for (int i = 0; i < newRows; i++) {
             for (int j = 0; j < cols; j++) {
+                // Could also average adjacent pixels here for better quality
                 result.set(i, j, matrix.get(i * 2, j));
             }
         }
@@ -78,10 +175,13 @@ public class Sampling {
         int cols = matrix.getColumnDimension();
         int newCols = cols / 4;
 
+        Logger.debug("Horizontal 4:1:1 downsampling: " + rows + "x" + cols + " -> " + rows + "x" + newCols);
+
         Matrix result = new Matrix(rows, newCols);
 
         for (int i = 0; i < rows; i++) {
             for (int j = 0; j < newCols; j++) {
+                // Could also average adjacent pixels here for better quality
                 result.set(i, j, matrix.get(i, j * 4));
             }
         }
@@ -94,13 +194,15 @@ public class Sampling {
         int cols = matrix.getColumnDimension();
         int newCols = cols * 2;
 
+        Logger.debug("Horizontal upsampling: " + rows + "x" + cols + " -> " + rows + "x" + newCols);
+
         Matrix result = new Matrix(rows, newCols);
 
         for (int i = 0; i < rows; i++) {
             for (int j = 0; j < cols; j++) {
                 double value = matrix.get(i, j);
-                result.set(i, j * 2, value);
-                result.set(i, j * 2 + 1, value);
+                result.set(i, j * 2, value);     // Even columns
+                result.set(i, j * 2 + 1, value); // Odd columns
             }
         }
 
@@ -112,13 +214,15 @@ public class Sampling {
         int cols = matrix.getColumnDimension();
         int newRows = rows * 2;
 
+        Logger.debug("Vertical upsampling: " + rows + "x" + cols + " -> " + newRows + "x" + cols);
+
         Matrix result = new Matrix(newRows, cols);
 
         for (int i = 0; i < rows; i++) {
             for (int j = 0; j < cols; j++) {
                 double value = matrix.get(i, j);
-                result.set(i * 2, j, value);
-                result.set(i * 2 + 1, j, value);
+                result.set(i * 2, j, value);     // Even rows
+                result.set(i * 2 + 1, j, value); // Odd rows
             }
         }
 
@@ -130,11 +234,14 @@ public class Sampling {
         int cols = matrix.getColumnDimension();
         int newCols = cols * 4;
 
+        Logger.debug("Horizontal 4:1:1 upsampling: " + rows + "x" + cols + " -> " + rows + "x" + newCols);
+
         Matrix result = new Matrix(rows, newCols);
 
         for (int i = 0; i < rows; i++) {
             for (int j = 0; j < cols; j++) {
                 double value = matrix.get(i, j);
+                // Expand each sample to 4 pixels
                 result.set(i, j * 4, value);
                 result.set(i, j * 4 + 1, value);
                 result.set(i, j * 4 + 2, value);
