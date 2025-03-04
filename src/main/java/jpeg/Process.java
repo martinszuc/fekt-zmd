@@ -2,6 +2,7 @@ package jpeg;
 
 import Jama.Matrix;
 import Core.Helper;
+import enums.SamplingType;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -115,6 +116,22 @@ public class Process {
             }
         }
         return result;
+    }
+
+    // Add these methods to the Process.java class
+
+    public void downSample(SamplingType samplingType) {
+        if (isYCbCrConverted) {
+            Cb = Sampling.sampleDown(Cb, samplingType);
+            Cr = Sampling.sampleDown(Cr, samplingType);
+        }
+    }
+
+    public void upSample(SamplingType samplingType) {
+        if (isYCbCrConverted) {
+            Cb = Sampling.sampleUp(Cb, samplingType);
+            Cr = Sampling.sampleUp(Cr, samplingType);
+        }
     }
 
     public BufferedImage getImage() {

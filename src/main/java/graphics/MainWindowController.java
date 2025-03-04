@@ -196,9 +196,31 @@ public class MainWindowController implements Initializable {
         }
     }
 
+    public void sample() {
+        if (processModified != null && processModified.isYCbCrConverted()) {
+            SamplingType selectedSampling = sampling.getSelectionModel().getSelectedItem();
+            processModified.downSample(selectedSampling);
+
+            if (showSteps.isSelected()) {
+                Dialogs.showImageInWindow(processModified.getChannelImage(processModified.getCb()), "Cb - Downsampled");
+                Dialogs.showImageInWindow(processModified.getChannelImage(processModified.getCr()), "Cr - Downsampled");
+            }
+        }
+    }
+
+    public void inverseSample() {
+        if (processModified != null && processModified.isYCbCrConverted()) {
+            SamplingType selectedSampling = sampling.getSelectionModel().getSelectedItem();
+            processModified.upSample(selectedSampling);
+
+            if (showSteps.isSelected()) {
+                Dialogs.showImageInWindow(processModified.getChannelImage(processModified.getCb()), "Cb - Upsampled");
+                Dialogs.showImageInWindow(processModified.getChannelImage(processModified.getCr()), "Cr - Upsampled");
+            }
+        }
+    }
+
     // Placeholders for future features
-    public void sample() {}
-    public void inverseSample() {}
     public void transform() {}
     public void inverseTransform() {}
     public void quantize() {}
