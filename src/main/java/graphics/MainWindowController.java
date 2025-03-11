@@ -50,6 +50,10 @@ public class MainWindowController implements Initializable {
     TextField qualityMSE, qualityMAE, qualitySAE, qualityPSNR;
     @FXML
     TextField qualitySSIM, qualityMSSIM;
+    @FXML
+    ComboBox<QualityType> ssimQualityType;
+    @FXML
+    Button countPSNRButton, countSSIMButton;
 
     /**
      * Initializes the window and sets default values.
@@ -67,7 +71,7 @@ public class MainWindowController implements Initializable {
         transformType.getSelectionModel().select(TransformType.DCT);
         quantizeQuality.setValue(50);
 
-        // Initialize quality type ComboBox
+        // Initialize quality type ComboBox for PSNR
         qualityType.getItems().setAll(
                 QualityType.RGB,
                 QualityType.RED,
@@ -79,6 +83,14 @@ public class MainWindowController implements Initializable {
                 QualityType.YCBCR
         );
         qualityType.getSelectionModel().select(QualityType.RGB);
+
+        // Initialize quality type ComboBox for SSIM
+        ssimQualityType.getItems().setAll(
+                QualityType.Y,
+                QualityType.CB,
+                QualityType.CR
+        );
+        ssimQualityType.getSelectionModel().select(QualityType.Y);
 
         // Initialize transform block sizes
         ObservableList<Integer> blocks = FXCollections.observableArrayList(2, 4, 8, 16, 32, 64, 128, 256, 512);
@@ -295,11 +307,10 @@ public class MainWindowController implements Initializable {
         }
     }
 
-    // Quality assessment methods
-
     /**
      * Calculates quality metrics based on the selected component
      */
+    @FXML
     public void countQuality() {
         Logger.info("Calculating quality metrics");
 
@@ -321,7 +332,6 @@ public class MainWindowController implements Initializable {
 
         try {
             double mse = 0, mae = 0, sae = 0, psnr = 0;
-            double ssim = 0, mssim = 0;
 
             switch (selectedType) {
                 case RGB:
@@ -409,14 +419,6 @@ public class MainWindowController implements Initializable {
                     mae = Quality.countMAE(origY, modY);
                     sae = Quality.countSAE(origY, modY);
                     psnr = Quality.countPSNR(mse);
-
-                    // Calculate SSIM for Y component
-                    try {
-                        ssim = Quality.countSSIM(processOriginal.getY(), processModified.getY());
-                        mssim = Quality.countMSSIM(processOriginal.getY(), processModified.getY());
-                    } catch (Exception e) {
-                        Logger.warning("SSIM calculation failed: " + e.getMessage());
-                    }
                     break;
 
                 case CB:
@@ -432,14 +434,6 @@ public class MainWindowController implements Initializable {
                     mae = Quality.countMAE(origCb, modCb);
                     sae = Quality.countSAE(origCb, modCb);
                     psnr = Quality.countPSNR(mse);
-
-                    // Calculate SSIM for Cb component
-                    try {
-                        ssim = Quality.countSSIM(processOriginal.getCb(), processModified.getCb());
-                        mssim = Quality.countMSSIM(processOriginal.getCb(), processModified.getCb());
-                    } catch (Exception e) {
-                        Logger.warning("SSIM calculation failed: " + e.getMessage());
-                    }
                     break;
 
                 case CR:
@@ -455,14 +449,6 @@ public class MainWindowController implements Initializable {
                     mae = Quality.countMAE(origCr, modCr);
                     sae = Quality.countSAE(origCr, modCr);
                     psnr = Quality.countPSNR(mse);
-
-                    // Calculate SSIM for Cr component
-                    try {
-                        ssim = Quality.countSSIM(processOriginal.getCr(), processModified.getCr());
-                        mssim = Quality.countMSSIM(processOriginal.getCr(), processModified.getCr());
-                    } catch (Exception e) {
-                        Logger.warning("SSIM calculation failed: " + e.getMessage());
-                    }
                     break;
 
                 case YCBCR:
@@ -499,22 +485,107 @@ public class MainWindowController implements Initializable {
             qualitySAE.setText(String.format("%.4f", sae));
             qualityPSNR.setText(String.format("%.4f", psnr));
 
-            // Display SSIM results only if calculated
-            if (ssim != 0 || mssim != 0) {
-                qualitySSIM.setText(String.format("%.6f", ssim));
-                qualityMSSIM.setText(String.format("%.6f", mssim));
-            }
-
             Logger.info("Quality metrics calculated successfully");
             Logger.info(String.format("MSE: %.4f, MAE: %.4f, SAE: %.4f, PSNR: %.4f", mse, mae, sae, psnr));
-            if (ssim != 0 || mssim != 0) {
-                Logger.info(String.format("SSIM: %.6f, MSSIM: %.6f", ssim, mssim));
-            }
 
         } catch (Exception e) {
             Logger.error("Error calculating quality metrics: " + e.getMessage());
             e.printStackTrace();
             showAlert("Quality Calculation Error", "An error occurred: " + e.getMessage());
+        }
+    }
+
+    @FXML
+    public void countSSIM() {
+        Logger.info("Calculating SSIM metrics");
+
+        if (processOriginal == null || processModified == null) {
+            Logger.warning("Cannot calculate SSIM: no images loaded");
+            showAlert("Cannot Calculate SSIM",
+                    "Please load an image first before calculating SSIM metrics.");
+            return;
+        }
+
+        // First ensure the images have been converted to YCbCr
+        if (!processOriginal.isYCbCrConverted() || !processModified.isYCbCrConverted()) {
+            Logger.warning("Cannot calculate SSIM: images not converted to YCbCr");
+            showAlert("Cannot Calculate SSIM",
+                    "Please convert the images to YCbCr first using the 'RGB -> YCbCr' button.");
+            return;
+        }
+
+        QualityType selectedType = ssimQualityType.getSelectionModel().getSelectedItem();
+
+        if (selectedType == null) {
+            Logger.warning("No SSIM component selected");
+            return;
+        }
+
+        Logger.info("Selected SSIM component: " + selectedType);
+
+        try {
+            double ssim = 0, mssim = 0;
+
+            switch (selectedType) {
+                case Y:
+                    if (processOriginal.getY() == null || processModified.getY() == null) {
+                        Logger.warning("Y component not available");
+                        showAlert("SSIM Calculation Error", "Y component not available");
+                        return;
+                    }
+
+                    ssim = Quality.countSSIM(processOriginal.getY(), processModified.getY());
+                    mssim = Quality.countMSSIM(processOriginal.getY(), processModified.getY());
+                    break;
+
+                case CB:
+                    if (processOriginal.getCb() == null || processModified.getCb() == null) {
+                        Logger.warning("Cb component not available");
+                        showAlert("SSIM Calculation Error", "Cb component not available");
+                        return;
+                    }
+
+                    ssim = Quality.countSSIM(processOriginal.getCb(), processModified.getCb());
+                    mssim = Quality.countMSSIM(processOriginal.getCb(), processModified.getCb());
+                    break;
+
+                case CR:
+                    if (processOriginal.getCr() == null || processModified.getCr() == null) {
+                        Logger.warning("Cr component not available");
+                        showAlert("SSIM Calculation Error", "Cr component not available");
+                        return;
+                    }
+
+                    ssim = Quality.countSSIM(processOriginal.getCr(), processModified.getCr());
+                    mssim = Quality.countMSSIM(processOriginal.getCr(), processModified.getCr());
+                    break;
+
+                default:
+                    Logger.warning("Invalid component selected for SSIM");
+                    showAlert("SSIM Calculation Error", "Invalid component selected");
+                    return;
+            }
+
+            // Display results in text fields
+            qualitySSIM.setText(String.format("%.6f", ssim));
+            qualityMSSIM.setText(String.format("%.6f", mssim));
+
+            Logger.info("SSIM metrics calculated successfully");
+            Logger.info(String.format("SSIM: %.6f, MSSIM: %.6f", ssim, mssim));
+
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("Not implemented yet")) {
+                Logger.warning("SSIM calculation not implemented yet");
+                showAlert("SSIM Calculation", "SSIM calculation is not implemented yet.");
+            } else {
+                Logger.error("Error calculating SSIM metrics: " + e.getMessage());
+                e.printStackTrace();
+                showAlert("SSIM Calculation Error", "An error occurred: " + e.getMessage());
+            }
+        } catch (Exception e) {
+            Logger.error("Error calculating SSIM metrics: " + e.getMessage());
+            e.printStackTrace();
+            showAlert("SSIM Calculation Error", "An error occurred: " + e.getMessage());
         }
     }
 
