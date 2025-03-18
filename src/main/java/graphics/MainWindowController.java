@@ -14,6 +14,7 @@ import javafx.fxml.Initializable;
 import javafx.scene.control.*;
 import javafx.stage.Stage;
 import javafx.stage.WindowEvent;
+import jpeg.Transform;
 import utils.Logger;
 import Jama.Matrix;
 
@@ -619,9 +620,145 @@ public class MainWindowController implements Initializable {
         alert.showAndWait();
     }
 
+    // Transform
+
+    public void transform() {
+        Logger.info("Transform button clicked");
+
+        if (processModified == null) {
+            Logger.warning("Cannot transform - no image loaded");
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.setTitle("Cannot Transform");
+            alert.setHeaderText(null);
+            alert.setContentText("No image loaded. Please load an image first.");
+            alert.showAndWait();
+            return;
+        }
+
+        if (!processModified.isYCbCrConverted()) {
+            Logger.warning("Cannot transform - YCbCr conversion not performed");
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.setTitle("Cannot Transform");
+            alert.setHeaderText(null);
+            alert.setContentText("You must convert to YCbCr first before applying transforms.");
+            alert.showAndWait();
+            return;
+        }
+
+        TransformType selectedType = transformType.getSelectionModel().getSelectedItem();
+        int blockSize = transformBlock.getValue();
+
+        Logger.info("Starting " + selectedType + " transform with block size " + blockSize);
+        long startTime = System.currentTimeMillis();
+
+        try {
+            // Get Y, Cb, and Cr channels
+            Matrix y = processModified.getY();
+            Matrix cb = processModified.getCb();
+            Matrix cr = processModified.getCr();
+
+            Logger.info("Transforming Y channel (" + y.getRowDimension() + "x" + y.getColumnDimension() + ")");
+            y = Transform.transform(y, selectedType, blockSize);
+            Logger.info("Transforming Cb channel (" + cb.getRowDimension() + "x" + cb.getColumnDimension() + ")");
+            cb = Transform.transform(cb, selectedType, blockSize);
+            Logger.info("Transforming Cr channel (" + cr.getRowDimension() + "x" + cr.getColumnDimension() + ")");
+            cr = Transform.transform(cr, selectedType, blockSize);
+
+            // Store transformed matrices back in process
+            processModified.setY(y);
+            processModified.setCb(cb);
+            processModified.setCr(cr);
+
+            long endTime = System.currentTimeMillis();
+            Logger.info("Complete transform operation finished in " + (endTime - startTime) + "ms");
+
+            if (showSteps.isSelected()) {
+                Logger.info("Displaying transformed channels (show steps enabled)");
+                Dialogs.showImageInWindow(processModified.getChannelImage(y), "Y - " + selectedType + " Transformed (Block Size: " + blockSize + ")");
+                Dialogs.showImageInWindow(processModified.getChannelImage(cb), "Cb - " + selectedType + " Transformed (Block Size: " + blockSize + ")");
+                Dialogs.showImageInWindow(processModified.getChannelImage(cr), "Cr - " + selectedType + " Transformed (Block Size: " + blockSize + ")");
+            }
+        } catch (Exception e) {
+            Logger.error("Error during transform: " + e.getMessage());
+            e.printStackTrace();
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle("Transform Error");
+            alert.setHeaderText(null);
+            alert.setContentText("An error occurred during transformation: " + e.getMessage());
+            alert.showAndWait();
+        }
+    }
+
+    public void inverseTransform() {
+        Logger.info("Inverse Transform button clicked");
+
+        if (processModified == null) {
+            Logger.warning("Cannot inverse transform - no image loaded");
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.setTitle("Cannot Inverse Transform");
+            alert.setHeaderText(null);
+            alert.setContentText("No image loaded. Please load an image first.");
+            alert.showAndWait();
+            return;
+        }
+
+        if (!processModified.isYCbCrConverted()) {
+            Logger.warning("Cannot inverse transform - YCbCr conversion not performed");
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.setTitle("Cannot Inverse Transform");
+            alert.setHeaderText(null);
+            alert.setContentText("You must convert to YCbCr first before applying inverse transforms.");
+            alert.showAndWait();
+            return;
+        }
+
+        TransformType selectedType = transformType.getSelectionModel().getSelectedItem();
+        int blockSize = transformBlock.getValue();
+
+        Logger.info("Starting inverse " + selectedType + " transform with block size " + blockSize);
+        long startTime = System.currentTimeMillis();
+
+        try {
+            // Get Y, Cb, and Cr channels
+            Matrix y = processModified.getY();
+            Matrix cb = processModified.getCb();
+            Matrix cr = processModified.getCr();
+
+            Logger.info("Inverse transforming Y channel (" + y.getRowDimension() + "x" + y.getColumnDimension() + ")");
+            y = Transform.inverseTransform(y, selectedType, blockSize);
+
+            Logger.info("Inverse transforming Cb channel (" + cb.getRowDimension() + "x" + cb.getColumnDimension() + ")");
+            cb = Transform.inverseTransform(cb, selectedType, blockSize);
+
+            Logger.info("Inverse transforming Cr channel (" + cr.getRowDimension() + "x" + cr.getColumnDimension() + ")");
+            cr = Transform.inverseTransform(cr, selectedType, blockSize);
+
+            // Store inverse transformed matrices back in process
+            processModified.setY(y);
+            processModified.setCb(cb);
+            processModified.setCr(cr);
+
+            long endTime = System.currentTimeMillis();
+            Logger.info("Complete inverse transform operation finished in " + (endTime - startTime) + "ms");
+
+            if (showSteps.isSelected()) {
+                Logger.info("Displaying inverse transformed channels (show steps enabled)");
+                Dialogs.showImageInWindow(processModified.getChannelImage(y), "Y - " + selectedType + " Inverse Transformed (Block Size: " + blockSize + ")");
+                Dialogs.showImageInWindow(processModified.getChannelImage(cb), "Cb - " + selectedType + " Inverse Transformed (Block Size: " + blockSize + ")");
+                Dialogs.showImageInWindow(processModified.getChannelImage(cr), "Cr - " + selectedType + " Inverse Transformed (Block Size: " + blockSize + ")");
+            }
+        } catch (Exception e) {
+            Logger.error("Error during inverse transform: " + e.getMessage());
+            e.printStackTrace();
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle("Inverse Transform Error");
+            alert.setHeaderText(null);
+            alert.setContentText("An error occurred during inverse transformation: " + e.getMessage());
+            alert.showAndWait();
+        }
+    }
+
     // Placeholders for future features
-    public void transform() {}
-    public void inverseTransform() {}
     public void quantize() {}
     public void inverseQuantize() {}
 }

@@ -18,6 +18,30 @@ public class Process {
         loadRGBArrays();
     }
 
+    /**
+     * Sets the Y component matrix.
+     * @param y The new Y component matrix
+     */
+    public void setY(Matrix y) {
+        this.Y = y;
+    }
+
+    /**
+     * Sets the Cb component matrix.
+     * @param cb The new Cb component matrix
+     */
+    public void setCb(Matrix cb) {
+        this.Cb = cb;
+    }
+
+    /**
+     * Sets the Cr component matrix.
+     * @param cr The new Cr component matrix
+     */
+    public void setCr(Matrix cr) {
+        this.Cr = cr;
+    }
+
     // Extracts RGB channels into arrays.
     private void loadRGBArrays() {
         Logger.info("Loading RGB arrays from image");
