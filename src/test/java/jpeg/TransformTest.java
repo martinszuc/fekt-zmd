@@ -1,6 +1,7 @@
+package jpeg;
+
 import Jama.Matrix;
 import enums.TransformType;
-import jpeg.Transform;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
