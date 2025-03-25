@@ -28,7 +28,6 @@ public class Quantization {
 
     /**
      * Gets a quantization matrix for the specified parameters.
-     *
      * @param blockSize Size of the block (e.g., 4, 8, 16)
      * @param quality Quality value between 1 and 100
      * @param matrixY True for luminance (Y), false for chrominance (Cb, Cr)
@@ -86,12 +85,6 @@ public class Quantization {
     /**
      * Quantizes a matrix using the specified parameters.
      * Formula: Squv = [Suv / Quv]
-     *
-     * @param input Matrix to quantize
-     * @param blockSize Size of blocks for quantization
-     * @param quality Quality value (1-100)
-     * @param matrixY True for luminance, false for chrominance
-     * @return Quantized matrix
      */
     public static Matrix quantize(Matrix input, int blockSize, double quality, boolean matrixY) {
         if (input == null) {
@@ -123,7 +116,7 @@ public class Quantization {
                         for (int j = 0; j < blockSize; j++) {
                             double value = block.get(i, j) / quantMatrix.get(i, j);
 
-                            // Apply special rounding as specified
+                            // Apply special rounding
                             if (value > -0.2 && value < 0.2) {
                                 // Round to 2 decimal places for values between -0.2 and 0.2
                                 value = Math.round(value * 100) / 100.0;
@@ -155,12 +148,6 @@ public class Quantization {
     /**
      * Applies inverse quantization to a quantized matrix.
      * Formula: Siquv = Squv * Quv
-     *
-     * @param input Quantized matrix
-     * @param blockSize Size of blocks for inverse quantization
-     * @param quality Quality value (1-100)
-     * @param matrixY True for luminance, false for chrominance
-     * @return Inverse quantized matrix
      */
     public static Matrix inverseQuantize(Matrix input, int blockSize, double quality, boolean matrixY) {
         if (input == null) {

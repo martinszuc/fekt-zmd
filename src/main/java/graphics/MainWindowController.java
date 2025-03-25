@@ -171,7 +171,7 @@ public class MainWindowController implements Initializable {
         }
     }
 
-    // --- Original Image Channels ---
+    // Original Image Channels
     public void showRedOriginal() {
         if (processOriginal != null) {
             Logger.info("Displaying Red channel of original image");
@@ -214,7 +214,7 @@ public class MainWindowController implements Initializable {
         }
     }
 
-    // --- Modified Image Channels ---
+    // Modified Image Channels
     public void showRedModified() {
         if (processModified != null) {
             Logger.info("Displaying Red channel of modified image");
@@ -507,7 +507,7 @@ public class MainWindowController implements Initializable {
             return;
         }
 
-        // First ensure the images have been converted to YCbCr
+        // Ensure images have been converted to YCbCr
         if (!processOriginal.isYCbCrConverted() || !processModified.isYCbCrConverted()) {
             Logger.warning("Cannot calculate SSIM: images not converted to YCbCr");
             showAlert("Cannot Calculate SSIM",
@@ -619,8 +619,6 @@ public class MainWindowController implements Initializable {
         alert.setContentText(content);
         alert.showAndWait();
     }
-
-    // Transform
 
     public void transform() {
         Logger.info("Transform button clicked");
@@ -759,8 +757,7 @@ public class MainWindowController implements Initializable {
     }
 
     /**
-     * Implements the quantization feature.
-     * This method should be added to your MainWindowController class.
+     * Performs quantization on the image data
      */
     public void quantize() {
         Logger.info("Quantize button clicked");
@@ -810,8 +807,7 @@ public class MainWindowController implements Initializable {
     }
 
     /**
-     * Implements the inverse quantization feature.
-     * This method should be added to your MainWindowController class.
+     * Performs inverse quantization on the image data
      */
     public void inverseQuantize() {
         Logger.info("Inverse Quantize button clicked");

@@ -29,21 +29,15 @@ public class Dialogs {
     private static ArrayList<Stage> openStages = new ArrayList<>();
 
     /**
-     * Show buffered image in new window.
-     *
-     * @param bufferedImage
-     * @param title
+     * Shows a buffered image in a new window.
      */
     public static void showImageInWindow(BufferedImage bufferedImage, String title) {
         showImageInWindow(bufferedImage, title, false);
     }
 
     /**
-     * Show buffered image in new window.
-     *
-     * @param bufferedImage
-     * @param title
-     * @param keepOpen      If it is set to true, window can be close only manually. Close All button wont work on it.
+     * Shows a buffered image in a new window.
+     * @param keepOpen If true, window can only be closed manually
      */
     public static void showImageInWindow(BufferedImage bufferedImage, String title, boolean keepOpen) {
         if (bufferedImage == null) return;
@@ -72,12 +66,11 @@ public class Dialogs {
     }
 
     /**
-     * Show multiple images in one window.
-     *
-     * @param title     Window title.
-     * @param keepOpen  If it is set to true, window can be close only manually. Close All button wont work on it.
-     * @param showNames If it is set to true, image names will be shown in top left corner.
-     * @param images    Pair of buffered image and image name. Create pair with new Pair<>(bufferedImage, imageName).
+     * Shows multiple images in one window.
+     * @param title Window title
+     * @param keepOpen If true, window can only be closed manually
+     * @param showNames If true, image names will be shown in top left corner
+     * @param images Pairs of buffered images and their names
      */
     public static void showMultipleImageInWindow(String title, boolean keepOpen, boolean showNames, Pair<BufferedImage, String>... images) {
         Stage stage = new Stage();
@@ -120,15 +113,13 @@ public class Dialogs {
         }
 
         handleMaxSize(stage, jointWidth, maxHeight);
-
-        // Count image percentage of window size
         setUpSizeListener(firstImageView, imageWidth, imageHeight, stage, scene, title);
 
         stage.show();
     }
 
     /**
-     * Close all open windows with images.
+     * Closes all open windows with images.
      */
     public static void closeAllWindows() {
         for (Stage stage : openStages) {
@@ -138,7 +129,7 @@ public class Dialogs {
     }
 
     /**
-     * Close all images windows except windows with keepOpen set to true.
+     * Closes all image windows except those marked as keepOpen.
      */
     public static void closeImageWindows() {
         Iterator<Stage> iterator = openStages.iterator();
@@ -152,10 +143,7 @@ public class Dialogs {
     }
 
     /**
-     * Load image from file into BufferedImage.
-     *
-     * @param imageFile File with image.
-     * @return BufferedImage
+     * Loads an image from file.
      */
     public static BufferedImage loadImageFromPath(File imageFile) {
         if (!imageFile.exists()) throw new RuntimeException("Image file does not exist.");
@@ -168,21 +156,14 @@ public class Dialogs {
     }
 
     /**
-     * Load image from path into BufferedImage.
-     *
-     * @param pathToIImage Path to image file.
-     * @return BufferedImage
+     * Loads an image from path.
      */
     public static BufferedImage loadImageFromPath(String pathToIImage) {
         return loadImageFromPath(new File(pathToIImage));
     }
 
     /**
-     * Open file chooser dialog and return selected file.
-     * It is limited to image files only.
-     * Default directory is Images directory in project root.
-     *
-     * @return Selected image file.
+     * Opens file chooser dialog for selecting an image.
      */
     public static File openFile() {
         FileChooser fileChooser = new FileChooser();
@@ -202,8 +183,9 @@ public class Dialogs {
         return null;
     }
 
+    // Helper methods
+
     private static Image convertImage(BufferedImage image) {
-        // Convert buffered image to JavaFX image. Equivalent to SwingFXUtils.toFXImage(bufferedImage, null);
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try {
             ImageIO.write(image, "png", baos);
@@ -226,7 +208,6 @@ public class Dialogs {
         imageView.fitWidthProperty().bind(Bindings.multiply(scene.widthProperty(), fxImage.getWidth() / maxWidth));
         imageView.fitHeightProperty().bind(Bindings.multiply(scene.heightProperty(), fxImage.getHeight() / maxHeight));
 
-        // Add image label
         stackPane.getChildren().add(imageView);
 
         if (showNames) {
@@ -240,7 +221,6 @@ public class Dialogs {
     }
 
     private static void handleMaxSize(Stage stage, int maxWidth, int maxHeight) {
-        // Handle bigger images
         double screenWidth = Toolkit.getDefaultToolkit().getScreenSize().getWidth();
         double screenHeight = Toolkit.getDefaultToolkit().getScreenSize().getHeight();
 
@@ -254,7 +234,6 @@ public class Dialogs {
     }
 
     private static void setUpSizeListener(ImageView imageView, int imageWidth, int imageHeight, Stage stage, Scene scene, String title) {
-        // Count image percentage of window size
         ChangeListener<Number> sizeListener = (observable, oldValue, newValue) -> {
             double scaleWidth = imageView.getFitWidth() / imageWidth;
             double scaleHeight = imageView.getFitHeight() / imageHeight;

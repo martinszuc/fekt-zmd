@@ -5,16 +5,14 @@ import enums.TransformType;
 import utils.Logger;
 
 /**
- * Class for performing DCT and WHT transformations on matrices.
- * Used for transforming image data into frequency domain and back.
+ * Performs DCT and WHT transformations on matrices.
  */
 public class Transform {
 
     /**
      * Gets a transformation matrix for the specified transform type and block size.
-     *
-     * @param type The type of transform (DCT or WHT)
-     * @param blockSize The size of the square transformation matrix
+     * @param type Transform type (DCT or WHT)
+     * @param blockSize Size of the transform block
      * @return The transformation matrix
      */
     public static Matrix getTransformMatrix(TransformType type, int blockSize) {
@@ -43,12 +41,7 @@ public class Transform {
 
     /**
      * Transforms a matrix using the specified transform type and block size.
-     * For forward transform: Θ = AXA^T
-     *
-     * @param input The input matrix to transform
-     * @param type The type of transform (DCT or WHT)
-     * @param blockSize The size of the transform blocks
-     * @return The transformed matrix
+     * Forward transform: Θ = AXA^T
      */
     public static Matrix transform(Matrix input, TransformType type, int blockSize) {
         if (input == null) {
@@ -82,13 +75,8 @@ public class Transform {
     }
 
     /**
-     * Performs inverse transformation on a matrix using the specified transform type and block size.
-     * For inverse transform: X = A^T * Θ * A
-     *
-     * @param input The input matrix to inverse transform
-     * @param type The type of transform (DCT or WHT)
-     * @param blockSize The size of the transform blocks
-     * @return The inverse transformed matrix
+     * Performs inverse transformation.
+     * Inverse transform: X = A^T * Θ * A
      */
     public static Matrix inverseTransform(Matrix input, TransformType type, int blockSize) {
         if (input == null) {
@@ -122,11 +110,7 @@ public class Transform {
     }
 
     /**
-     * Creates a DCT transform matrix of the specified size.
-     * Based on formulas 5.11 and 5.12 from the specification.
-     *
-     * @param size The size of the square matrix
-     * @return The DCT transform matrix
+     * Creates a DCT transform matrix using formulas 5.11 and 5.12 from spec.
      */
     private static Matrix createDCTMatrix(int size) {
         Logger.info("Building DCT transform matrix of size " + size + "x" + size);
@@ -134,14 +118,14 @@ public class Transform {
 
         Matrix matrix = new Matrix(size, size);
 
-        // For i=0 (first row): simplified because cos(0) = 1
+        // First row
         double firstRowValue = Math.sqrt(1.0 / size);
         for (int j = 0; j < size; j++) {
             matrix.set(0, j, firstRowValue);
         }
         Logger.debug("DCT matrix: first row set with value " + firstRowValue);
 
-        // For i=1 to size-1 (remaining rows)
+        // Remaining rows
         for (int i = 1; i < size; i++) {
             for (int j = 0; j < size; j++) {
                 double value = Math.sqrt(2.0 / size) * Math.cos((2 * j + 1) * i * Math.PI / (2 * size));
@@ -156,10 +140,7 @@ public class Transform {
     }
 
     /**
-     * Creates a WHT transform matrix of the specified size.
-     *
-     * @param size The size of the square matrix (must be a power of 2)
-     * @return The WHT transform matrix
+     * Creates a WHT transform matrix (size must be power of 2).
      */
     private static Matrix createWHTMatrix(int size) {
         Logger.info("Building WHT transform matrix of size " + size + "x" + size);
@@ -175,7 +156,7 @@ public class Transform {
         double[][] hadamard = generateHadamardMatrix(size);
         Logger.debug("Hadamard matrix generated without normalization");
 
-        // Create the Walsh-Hadamard transform matrix with normalization
+        // Normalize the Walsh-Hadamard transform matrix
         Matrix wht = new Matrix(hadamard);
         double normalizationFactor = 1.0 / Math.sqrt(size);
         wht = wht.times(normalizationFactor);
@@ -188,11 +169,8 @@ public class Transform {
     }
 
     /**
-     * Generates a Hadamard matrix of the specified size (without normalization).
-     * Uses the recursive definition: H_n = [[H_(n/2), H_(n/2)], [H_(n/2), -H_(n/2)]]
-     *
-     * @param size The size of the matrix (must be a power of 2)
-     * @return The Hadamard matrix
+     * Generates a Hadamard matrix without normalization.
+     * Uses recursive definition: H_n = [[H_(n/2), H_(n/2)], [H_(n/2), -H_(n/2)]]
      */
     private static double[][] generateHadamardMatrix(int size) {
         Logger.debug("Generating Hadamard matrix of size " + size + "x" + size);
@@ -223,13 +201,7 @@ public class Transform {
     }
 
     /**
-     * Transforms a matrix by processing it in blocks of the specified size.
-     *
-     * @param input The input matrix
-     * @param transformMatrix The transform matrix to use
-     * @param blockSize The size of each block
-     * @param inverse Whether to perform inverse transformation
-     * @return The transformed matrix
+     * Processes a matrix in blocks for transformation.
      */
     private static Matrix transformByBlocks(Matrix input, Matrix transformMatrix, int blockSize, boolean inverse) {
         int rows = input.getRowDimension();
@@ -239,7 +211,7 @@ public class Transform {
         Logger.info("Start " + operationType + " matrix of size " + rows + "x" + cols +
                 " using blocks of size " + blockSize + "x" + blockSize);
 
-        // Create a new matrix for the result
+        // Create result matrix
         Matrix result = new Matrix(rows, cols);
 
         // Calculate total blocks for progress reporting
@@ -250,7 +222,7 @@ public class Transform {
         // Process each block
         for (int i = 0; i < rows; i += blockSize) {
             for (int j = 0; j < cols; j += blockSize) {
-                // Determine the actual block dimensions (may be smaller at edges)
+                // Determine actual block dimensions (may be smaller at edges)
                 int endRow = Math.min(i + blockSize - 1, rows - 1);
                 int endCol = Math.min(j + blockSize - 1, cols - 1);
                 int blockHeight = endRow - i + 1;

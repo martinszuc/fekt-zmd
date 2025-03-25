@@ -6,6 +6,12 @@ import utils.Logger;
 
 public class Sampling {
 
+    /**
+     * Downsamples an input matrix according to the selected sampling pattern.
+     * @param inputMatrix Input matrix to downsample
+     * @param samplingType Selected sampling pattern
+     * @return Downsampled matrix
+     */
     public static Matrix sampleDown(Matrix inputMatrix, SamplingType samplingType) {
         if (inputMatrix == null) {
             Logger.warning("NULL matrix passed to sampleDown");
@@ -69,6 +75,12 @@ public class Sampling {
         return result;
     }
 
+    /**
+     * Upsamples an input matrix according to the selected sampling pattern.
+     * @param inputMatrix Input matrix to upsample
+     * @param samplingType Selected sampling pattern
+     * @return Upsampled matrix
+     */
     public static Matrix sampleUp(Matrix inputMatrix, SamplingType samplingType) {
         if (inputMatrix == null) {
             Logger.warning("NULL matrix passed to sampleUp");
@@ -132,6 +144,8 @@ public class Sampling {
         return result;
     }
 
+    // Private helper methods for different sampling operations
+
     private static Matrix horizontalDownsample(Matrix matrix) {
         int rows = matrix.getRowDimension();
         int cols = matrix.getColumnDimension();
@@ -143,7 +157,6 @@ public class Sampling {
 
         for (int i = 0; i < rows; i++) {
             for (int j = 0; j < newCols; j++) {
-                // Could also average adjacent pixels here for better quality
                 result.set(i, j, matrix.get(i, j * 2));
             }
         }
@@ -162,7 +175,6 @@ public class Sampling {
 
         for (int i = 0; i < newRows; i++) {
             for (int j = 0; j < cols; j++) {
-                // Could also average adjacent pixels here for better quality
                 result.set(i, j, matrix.get(i * 2, j));
             }
         }
@@ -181,7 +193,6 @@ public class Sampling {
 
         for (int i = 0; i < rows; i++) {
             for (int j = 0; j < newCols; j++) {
-                // Could also average adjacent pixels here for better quality
                 result.set(i, j, matrix.get(i, j * 4));
             }
         }

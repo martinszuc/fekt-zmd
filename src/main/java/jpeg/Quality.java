@@ -4,18 +4,13 @@ import Jama.Matrix;
 import utils.Logger;
 
 /**
- * Class implementing objective quality assessment metrics for image comparison.
- * Implements MSE, MAE, SAE, PSNR, SSIM, and MSSIM calculations.
+ * Implements objective quality assessment metrics for image comparison.
  */
 public class Quality {
 
     /**
      * Calculates the Mean Squared Error between two matrices.
      * MSE = (1/MN) * Σ[x(m,n) - x'(m,n)]²
-     *
-     * @param original Original data as a 2D double array
-     * @param modified Modified data as a 2D double array
-     * @return MSE value
      */
     public static double countMSE(double[][] original, double[][] modified) {
         Logger.info("Calculating MSE");
@@ -38,10 +33,6 @@ public class Quality {
     /**
      * Calculates the Mean Absolute Error between two matrices.
      * MAE = (1/MN) * Σ|x(m,n) - x'(m,n)|
-     *
-     * @param original Original data as a 2D double array
-     * @param modified Modified data as a 2D double array
-     * @return MAE value
      */
     public static double countMAE(double[][] original, double[][] modified) {
         Logger.info("Calculating MAE");
@@ -63,10 +54,6 @@ public class Quality {
     /**
      * Calculates the Sum of Absolute Errors between two matrices.
      * SAE = Σ|x(m,n) - x'(m,n)|
-     *
-     * @param original Original data as a 2D double array
-     * @param modified Modified data as a 2D double array
-     * @return SAE value
      */
     public static double countSAE(double[][] original, double[][] modified) {
         Logger.info("Calculating SAE");
@@ -88,9 +75,6 @@ public class Quality {
      * Calculates the Peak Signal-to-Noise Ratio using the MSE.
      * PSNR = 10log₁₀[(2ⁿ-1)² / MSE]
      * For 8-bit images, (2ⁿ-1)² = 255²
-     *
-     * @param MSE Mean Squared Error value
-     * @return PSNR value in dB
      */
     public static double countPSNR(double MSE) {
         Logger.info("Calculating PSNR");
@@ -102,11 +86,6 @@ public class Quality {
 
     /**
      * Calculates PSNR for RGB images by averaging MSE values from three color channels.
-     *
-     * @param mseRed   MSE for the red channel
-     * @param mseGreen MSE for the green channel
-     * @param mseBlue  MSE for the blue channel
-     * @return PSNR value for the RGB image
      */
     public static double countPSNRforRGB(double mseRed, double mseGreen, double mseBlue) {
         Logger.info("Calculating PSNR for RGB image");
@@ -119,10 +98,6 @@ public class Quality {
     /**
      * Calculates the Structural Similarity Index Measure (SSIM) between two matrices.
      * SSIM = [(2μₓμᵧ + C₁)(2σₓᵧ + C₂)]/[(μₓ² + μᵧ² + C₁)(σₓ² + σᵧ² + C₂)]
-     *
-     * @param original Original data as a Matrix
-     * @param modified Modified data as a Matrix
-     * @return SSIM value between -1 and 1
      */
     public static double countSSIM(Matrix original, Matrix modified) {
         Logger.info("Calculating SSIM");
@@ -161,17 +136,13 @@ public class Quality {
     /**
      * Calculates the Mean SSIM (MSSIM) by dividing the image into 8x8 blocks
      * and averaging the SSIM values.
-     *
-     * @param original Original data as a Matrix
-     * @param modified Modified data as a Matrix
-     * @return MSSIM value
      */
     public static double countMSSIM(Matrix original, Matrix modified) {
         Logger.info("Calculating MSSIM");
 
         int rows = original.getRowDimension();
         int cols = original.getColumnDimension();
-        int blockSize = 8; // 8x8 blocks as suggested
+        int blockSize = 8; // 8x8 blocks
 
         double totalSSIM = 0;
         int blockCount = 0;

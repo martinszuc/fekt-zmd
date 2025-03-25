@@ -12,6 +12,9 @@ public class Process {
     private int[][] red, green, blue;
     private Matrix Y, Cb, Cr;
     private boolean isYCbCrConverted = false;
+    private boolean isQuantized = false;
+    private double quantizationQuality = 50.0;
+    private int quantizationBlockSize = 8;
 
     public Process(BufferedImage image) {
         this.image = image;
@@ -20,7 +23,6 @@ public class Process {
 
     /**
      * Sets the Y component matrix.
-     * @param y The new Y component matrix
      */
     public void setY(Matrix y) {
         this.Y = y;
@@ -28,7 +30,6 @@ public class Process {
 
     /**
      * Sets the Cb component matrix.
-     * @param cb The new Cb component matrix
      */
     public void setCb(Matrix cb) {
         this.Cb = cb;
@@ -36,13 +37,12 @@ public class Process {
 
     /**
      * Sets the Cr component matrix.
-     * @param cr The new Cr component matrix
      */
     public void setCr(Matrix cr) {
         this.Cr = cr;
     }
 
-    // Extracts RGB channels into arrays.
+    // Extracts RGB channels into arrays
     private void loadRGBArrays() {
         Logger.info("Loading RGB arrays from image");
         int width = image.getWidth();
@@ -63,7 +63,9 @@ public class Process {
         Logger.info("RGB arrays loaded - " + width + "x" + height);
     }
 
-    // Converts RGB to YCbCr.
+    /**
+     * Converts RGB to YCbCr.
+     */
     public void convertToYCbCr() {
         Logger.info("Converting RGB to YCbCr");
 
@@ -83,11 +85,16 @@ public class Process {
         Logger.info("Cr dimensions: " + Cr.getRowDimension() + "x" + Cr.getColumnDimension());
     }
 
+    /**
+     * Checks if image is converted to YCbCr.
+     */
     public boolean isYCbCrConverted() {
         return isYCbCrConverted;
     }
 
-    // Converts YCbCr back to RGB.
+    /**
+     * Converts YCbCr back to RGB.
+     */
     public void convertToRGB() {
         if (!isYCbCrConverted) {
             Logger.warning("Attempted to convert to RGB without YCbCr data");
@@ -106,7 +113,9 @@ public class Process {
         Logger.info("YCbCr to RGB conversion completed in " + (endTime - startTime) + "ms");
     }
 
-    // Returns a BufferedImage from the current RGB arrays.
+    /**
+     * Returns a BufferedImage from the current RGB arrays.
+     */
     public BufferedImage getRGBImage() {
         Logger.info("Creating RGB image from arrays");
         int width = red[0].length;
@@ -127,7 +136,9 @@ public class Process {
         return result;
     }
 
-    // Returns a BufferedImage for a single RGB channel.
+    /**
+     * Returns a BufferedImage for a single RGB channel.
+     */
     public BufferedImage getChannelImage(int[][] channel, String channelType) {
         Logger.info("Creating channel image for " + channelType);
         int width = channel[0].length;
@@ -157,7 +168,9 @@ public class Process {
         return result;
     }
 
-    // Returns a grayscale image for a YCbCr channel.
+    /**
+     * Returns a grayscale image for a YCbCr channel.
+     */
     public BufferedImage getChannelImage(Matrix channel) {
         if (channel == null) {
             Logger.warning("Attempted to create image from null channel");
@@ -183,6 +196,9 @@ public class Process {
         return result;
     }
 
+    /**
+     * Downsamples the chrominance channels according to the selected sampling pattern.
+     */
     public void downSample(SamplingType samplingType) {
         if (!isYCbCrConverted) {
             Logger.warning("Attempted to downsample without YCbCr conversion");
@@ -192,15 +208,12 @@ public class Process {
         Logger.info("Downsampling with pattern: " + samplingType);
         long startTime = System.currentTimeMillis();
 
-        // Log original dimensions
         Logger.info("Before downsampling - Cb: " + Cb.getRowDimension() + "x" + Cb.getColumnDimension() +
                 ", Cr: " + Cr.getRowDimension() + "x" + Cr.getColumnDimension());
 
-        // Perform downsampling
         Cb = Sampling.sampleDown(Cb, samplingType);
         Cr = Sampling.sampleDown(Cr, samplingType);
 
-        // Log new dimensions
         Logger.info("After downsampling - Cb: " + Cb.getRowDimension() + "x" + Cb.getColumnDimension() +
                 ", Cr: " + Cr.getRowDimension() + "x" + Cr.getColumnDimension());
 
@@ -208,6 +221,9 @@ public class Process {
         Logger.info("Downsampling completed in " + (endTime - startTime) + "ms");
     }
 
+    /**
+     * Upsamples the chrominance channels to restore their original resolution.
+     */
     public void upSample(SamplingType samplingType) {
         if (!isYCbCrConverted) {
             Logger.warning("Attempted to upsample without YCbCr conversion");
@@ -217,15 +233,12 @@ public class Process {
         Logger.info("Upsampling with pattern: " + samplingType);
         long startTime = System.currentTimeMillis();
 
-        // Log current dimensions
         Logger.info("Before upsampling - Cb: " + Cb.getRowDimension() + "x" + Cb.getColumnDimension() +
                 ", Cr: " + Cr.getRowDimension() + "x" + Cr.getColumnDimension());
 
-        // Perform upsampling
         Cb = Sampling.sampleUp(Cb, samplingType);
         Cr = Sampling.sampleUp(Cr, samplingType);
 
-        // Log new dimensions
         Logger.info("After upsampling - Cb: " + Cb.getRowDimension() + "x" + Cb.getColumnDimension() +
                 ", Cr: " + Cr.getRowDimension() + "x" + Cr.getColumnDimension());
 
@@ -233,15 +246,8 @@ public class Process {
         Logger.info("Upsampling completed in " + (endTime - startTime) + "ms");
     }
 
-    // Quantization
-
-    private boolean isQuantized = false;
-    private double quantizationQuality = 50.0;
-    private int quantizationBlockSize = 8;
-
     /**
-     * Performs quantization on Y, Cb, Cr channels
-     *
+     * Performs quantization on Y, Cb, Cr channels.
      * @param quality Quality value (1-100)
      * @param blockSize Block size for quantization
      */
@@ -259,14 +265,10 @@ public class Process {
         Logger.info("Quantizing with quality " + quality + " and block size " + blockSize);
         long startTime = System.currentTimeMillis();
 
-        // Quantize Y channel (luminance)
         Y = Quantization.quantize(Y, blockSize, quality, true);
-
-        // Quantize Cb and Cr channels (chrominance)
         Cb = Quantization.quantize(Cb, blockSize, quality, false);
         Cr = Quantization.quantize(Cr, blockSize, quality, false);
 
-        // Update state
         isQuantized = true;
         quantizationQuality = quality;
         quantizationBlockSize = blockSize;
@@ -276,7 +278,7 @@ public class Process {
     }
 
     /**
-     * Performs inverse quantization on Y, Cb, Cr channels
+     * Performs inverse quantization on Y, Cb, Cr channels.
      */
     public void inverseQuantize() {
         if (!isYCbCrConverted || !isQuantized) {
@@ -293,14 +295,10 @@ public class Process {
                 " and block size " + quantizationBlockSize);
         long startTime = System.currentTimeMillis();
 
-        // Inverse quantize Y channel (luminance)
         Y = Quantization.inverseQuantize(Y, quantizationBlockSize, quantizationQuality, true);
-
-        // Inverse quantize Cb and Cr channels (chrominance)
         Cb = Quantization.inverseQuantize(Cb, quantizationBlockSize, quantizationQuality, false);
         Cr = Quantization.inverseQuantize(Cr, quantizationBlockSize, quantizationQuality, false);
 
-        // Update state
         isQuantized = false;
 
         long endTime = System.currentTimeMillis();
@@ -308,32 +306,27 @@ public class Process {
     }
 
     /**
-     * Checks if the data is currently quantized
-     *
-     * @return true if the data is quantized, false otherwise
+     * Checks if the data is currently quantized.
      */
     public boolean isQuantized() {
         return isQuantized;
     }
 
     /**
-     * Gets the current quantization quality
-     *
-     * @return the current quantization quality
+     * Gets the current quantization quality.
      */
     public double getQuantizationQuality() {
         return quantizationQuality;
     }
 
     /**
-     * Gets the current quantization block size
-     *
-     * @return the current quantization block size
+     * Gets the current quantization block size.
      */
     public int getQuantizationBlockSize() {
         return quantizationBlockSize;
     }
 
+    // Getters
     public BufferedImage getImage() {
         return image;
     }
