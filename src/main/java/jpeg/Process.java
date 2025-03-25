@@ -233,6 +233,107 @@ public class Process {
         Logger.info("Upsampling completed in " + (endTime - startTime) + "ms");
     }
 
+    // Quantization
+
+    private boolean isQuantized = false;
+    private double quantizationQuality = 50.0;
+    private int quantizationBlockSize = 8;
+
+    /**
+     * Performs quantization on Y, Cb, Cr channels
+     *
+     * @param quality Quality value (1-100)
+     * @param blockSize Block size for quantization
+     */
+    public void quantize(double quality, int blockSize) {
+        if (!isYCbCrConverted) {
+            Logger.warning("Cannot quantize - YCbCr conversion not performed");
+            return;
+        }
+
+        if (Y == null || Cb == null || Cr == null) {
+            Logger.warning("Cannot quantize - YCbCr channels not available");
+            return;
+        }
+
+        Logger.info("Quantizing with quality " + quality + " and block size " + blockSize);
+        long startTime = System.currentTimeMillis();
+
+        // Quantize Y channel (luminance)
+        Y = Quantization.quantize(Y, blockSize, quality, true);
+
+        // Quantize Cb and Cr channels (chrominance)
+        Cb = Quantization.quantize(Cb, blockSize, quality, false);
+        Cr = Quantization.quantize(Cr, blockSize, quality, false);
+
+        // Update state
+        isQuantized = true;
+        quantizationQuality = quality;
+        quantizationBlockSize = blockSize;
+
+        long endTime = System.currentTimeMillis();
+        Logger.info("Quantization completed in " + (endTime - startTime) + "ms");
+    }
+
+    /**
+     * Performs inverse quantization on Y, Cb, Cr channels
+     */
+    public void inverseQuantize() {
+        if (!isYCbCrConverted || !isQuantized) {
+            Logger.warning("Cannot perform inverse quantization - data not quantized");
+            return;
+        }
+
+        if (Y == null || Cb == null || Cr == null) {
+            Logger.warning("Cannot perform inverse quantization - YCbCr channels not available");
+            return;
+        }
+
+        Logger.info("Inverse quantizing with quality " + quantizationQuality +
+                " and block size " + quantizationBlockSize);
+        long startTime = System.currentTimeMillis();
+
+        // Inverse quantize Y channel (luminance)
+        Y = Quantization.inverseQuantize(Y, quantizationBlockSize, quantizationQuality, true);
+
+        // Inverse quantize Cb and Cr channels (chrominance)
+        Cb = Quantization.inverseQuantize(Cb, quantizationBlockSize, quantizationQuality, false);
+        Cr = Quantization.inverseQuantize(Cr, quantizationBlockSize, quantizationQuality, false);
+
+        // Update state
+        isQuantized = false;
+
+        long endTime = System.currentTimeMillis();
+        Logger.info("Inverse quantization completed in " + (endTime - startTime) + "ms");
+    }
+
+    /**
+     * Checks if the data is currently quantized
+     *
+     * @return true if the data is quantized, false otherwise
+     */
+    public boolean isQuantized() {
+        return isQuantized;
+    }
+
+    /**
+     * Gets the current quantization quality
+     *
+     * @return the current quantization quality
+     */
+    public double getQuantizationQuality() {
+        return quantizationQuality;
+    }
+
+    /**
+     * Gets the current quantization block size
+     *
+     * @return the current quantization block size
+     */
+    public int getQuantizationBlockSize() {
+        return quantizationBlockSize;
+    }
+
     public BufferedImage getImage() {
         return image;
     }

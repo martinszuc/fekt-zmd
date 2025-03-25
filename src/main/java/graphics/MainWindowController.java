@@ -758,7 +758,106 @@ public class MainWindowController implements Initializable {
         }
     }
 
-    // Placeholders for future features
-    public void quantize() {}
-    public void inverseQuantize() {}
+    /**
+     * Implements the quantization feature.
+     * This method should be added to your MainWindowController class.
+     */
+    public void quantize() {
+        Logger.info("Quantize button clicked");
+
+        if (processModified == null) {
+            Logger.warning("Cannot quantize - no image loaded");
+            showAlert("Cannot Quantize", "No image loaded. Please load an image first.");
+            return;
+        }
+
+        if (!processModified.isYCbCrConverted()) {
+            Logger.warning("Cannot quantize - YCbCr conversion not performed");
+            showAlert("Cannot Quantize", "You must convert to YCbCr first before quantizing.");
+            return;
+        }
+
+        // Get quality value from the slider
+        double quality = quantizeQuality.getValue();
+
+        // Get block size from the spinner
+        int blockSize = transformBlock.getValue();
+
+        Logger.info("Starting quantization with quality " + quality + " and block size " + blockSize);
+        long startTime = System.currentTimeMillis();
+
+        try {
+            // Perform quantization
+            processModified.quantize(quality, blockSize);
+
+            long endTime = System.currentTimeMillis();
+            Logger.info("Quantization completed in " + (endTime - startTime) + "ms");
+
+            if (showSteps.isSelected()) {
+                Logger.info("Displaying quantized channels (show steps enabled)");
+                Dialogs.showImageInWindow(processModified.getChannelImage(processModified.getY()),
+                        "Y - Quantized (Quality: " + quality + ", Block Size: " + blockSize + ")");
+                Dialogs.showImageInWindow(processModified.getChannelImage(processModified.getCb()),
+                        "Cb - Quantized (Quality: " + quality + ", Block Size: " + blockSize + ")");
+                Dialogs.showImageInWindow(processModified.getChannelImage(processModified.getCr()),
+                        "Cr - Quantized (Quality: " + quality + ", Block Size: " + blockSize + ")");
+            }
+        } catch (Exception e) {
+            Logger.error("Error during quantization: " + e.getMessage());
+            e.printStackTrace();
+            showAlert("Quantization Error", "An error occurred during quantization: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Implements the inverse quantization feature.
+     * This method should be added to your MainWindowController class.
+     */
+    public void inverseQuantize() {
+        Logger.info("Inverse Quantize button clicked");
+
+        if (processModified == null) {
+            Logger.warning("Cannot inverse quantize - no image loaded");
+            showAlert("Cannot Inverse Quantize", "No image loaded. Please load an image first.");
+            return;
+        }
+
+        if (!processModified.isYCbCrConverted()) {
+            Logger.warning("Cannot inverse quantize - YCbCr conversion not performed");
+            showAlert("Cannot Inverse Quantize", "You must convert to YCbCr first.");
+            return;
+        }
+
+        if (!processModified.isQuantized()) {
+            Logger.warning("Cannot inverse quantize - image not quantized");
+            showAlert("Cannot Inverse Quantize", "The image has not been quantized yet.");
+            return;
+        }
+
+        Logger.info("Starting inverse quantization with quality " + processModified.getQuantizationQuality() +
+                " and block size " + processModified.getQuantizationBlockSize());
+        long startTime = System.currentTimeMillis();
+
+        try {
+            // Perform inverse quantization
+            processModified.inverseQuantize();
+
+            long endTime = System.currentTimeMillis();
+            Logger.info("Inverse quantization completed in " + (endTime - startTime) + "ms");
+
+            if (showSteps.isSelected()) {
+                Logger.info("Displaying inverse quantized channels (show steps enabled)");
+                Dialogs.showImageInWindow(processModified.getChannelImage(processModified.getY()),
+                        "Y - Inverse Quantized");
+                Dialogs.showImageInWindow(processModified.getChannelImage(processModified.getCb()),
+                        "Cb - Inverse Quantized");
+                Dialogs.showImageInWindow(processModified.getChannelImage(processModified.getCr()),
+                        "Cr - Inverse Quantized");
+            }
+        } catch (Exception e) {
+            Logger.error("Error during inverse quantization: " + e.getMessage());
+            e.printStackTrace();
+            showAlert("Inverse Quantization Error", "An error occurred during inverse quantization: " + e.getMessage());
+        }
+    }
 }
