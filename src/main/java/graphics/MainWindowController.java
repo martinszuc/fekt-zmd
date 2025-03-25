@@ -5,6 +5,9 @@ import Core.Helper;
 import enums.QualityType;
 import enums.SamplingType;
 import enums.TransformType;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
 import jpeg.Process;
 import jpeg.Quality;
 import javafx.collections.FXCollections;
@@ -854,6 +857,38 @@ public class MainWindowController implements Initializable {
             Logger.error("Error during inverse quantization: " + e.getMessage());
             e.printStackTrace();
             showAlert("Inverse Quantization Error", "An error occurred during inverse quantization: " + e.getMessage());
+        }
+    }
+
+    @FXML
+    public void openComparisonWindow() {
+        Logger.info("Opening comparison window");
+
+        if (processOriginal == null || processModified == null) {
+            showAlert("Cannot Compare", "Please load an image first.");
+            return;
+        }
+
+        try {
+            // Load the comparison window FXML
+            FXMLLoader loader = new FXMLLoader(getClass().getClassLoader().getResource("graphics/ComparisonWindow.fxml"));
+            Parent root = loader.load();
+
+            // Get the controller and set the processes
+            ComparisonWindowController controller = loader.getController();
+            controller.setProcesses(processOriginal, processModified);
+
+            // Create and show the stage
+            Stage stage = new Stage();
+            stage.setTitle("Image Comparison");
+            stage.getIcons().add(FileBindings.favicon);
+            stage.setScene(new Scene(root));
+            stage.show();
+
+        } catch (Exception e) {
+            Logger.error("Error opening comparison window: " + e.getMessage());
+            showAlert("Error", "Failed to open comparison window: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 }
