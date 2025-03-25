@@ -28,9 +28,10 @@ public class Quantization {
 
     /**
      * Gets a quantization matrix for the specified parameters.
+     *
      * @param blockSize Size of the block (e.g., 4, 8, 16)
-     * @param quality Quality value between 1 and 100
-     * @param matrixY True for luminance (Y), false for chrominance (Cb, Cr)
+     * @param quality   Quality value between 1 and 100
+     * @param matrixY   True for luminance (Y), false for chrominance (Cb, Cr)
      * @return Quantization matrix scaled to the right size and quality
      */
     public static Matrix getQuantizationMatrix(int blockSize, double quality, boolean matrixY) {
@@ -117,12 +118,12 @@ public class Quantization {
                             double value = block.get(i, j) / quantMatrix.get(i, j);
 
                             // Apply special rounding
-                            if (value > -0.2 && value < 0.2) {
-                                // Round to 2 decimal places for values between -0.2 and 0.2
-                                value = Math.round(value * 100) / 100.0;
+                            if (value >= -0.2 && value < 0) {
+                                value = Math.ceil(value);
+                            } else if (value >= 0 && value < 0.2) {
+                                value = Math.floor(value);
                             } else {
-                                // Round to 1 decimal place for other values
-                                value = Math.round(value * 10) / 10.0;
+                                value = (double) Math.round(value * 100) / 100;
                             }
 
                             quantizedBlock.set(i, j, value);
