@@ -3,9 +3,8 @@ package jpeg;
 import Jama.Matrix;
 
 public class Quantization {
-
-    // Standard quantization matrices for JPEG compression
-    private static final double[][] quantizationMatrix8Y = {
+    // Standard JPEG quantization matrices
+    private static final double[][] LUMINANCE_MATRIX = {
             {16, 11, 10, 16, 24, 40, 51, 61},
             {12, 12, 14, 19, 26, 58, 60, 55},
             {14, 13, 16, 24, 40, 57, 69, 56},
@@ -16,7 +15,7 @@ public class Quantization {
             {72, 92, 95, 98, 112, 100, 103, 99}
     };
 
-    private static final double[][] quantizationMatrix8C = {
+    private static final double[][] CHROMINANCE_MATRIX = {
             {17, 18, 24, 47, 99, 99, 99, 99},
             {18, 21, 26, 66, 99, 99, 99, 99},
             {24, 26, 56, 99, 99, 99, 99, 99},
@@ -28,46 +27,56 @@ public class Quantization {
     };
 
     /**
-     * Get quantization matrix adjusted for block size and quality
+     * Gets a quantization matrix for the specified parameters.
      *
-     * @param blockSize Size of the block (must be a power of 2)
-     * @param quality Quality factor (1-100)
-     * @param matrixY If true, returns Y matrix, otherwise returns C matrix
-     * @return Quantization matrix
+     * @param blockSize Size of the block (e.g., 4, 8, 16)
+     * @param quality Quality value between 1 and 100
+     * @param matrixY True for luminance (Y), false for chrominance (Cb, Cr)
+     * @return Quantization matrix scaled to the right size and quality
      */
     public static Matrix getQuantizationMatrix(int blockSize, double quality, boolean matrixY) {
-        // Select appropriate base matrix based on type (Y or C)
-        double[][] baseMatrix = matrixY ? quantizationMatrix8Y : quantizationMatrix8C;
-
-        // Handle special case for quality 100
+        // For quality 100, return a matrix with all 1's
         if (quality == 100) {
             return new Matrix(blockSize, blockSize, 1.0);
         }
 
-        // Calculate alpha coefficient based on quality
+        // Calculate alpha based on quality
         double alpha;
-        if (quality >= 50) {
-            alpha = 2.0 - (2.0 * quality / 100.0);
-        } else {
+        if (quality >= 1 && quality <= 50) {
             alpha = 50.0 / quality;
+        } else { // quality between 51 and 99
+            alpha = 2.0 - (2.0 * quality / 100.0);
         }
 
-        // Create adjusted matrix with appropriate size
+        // Select the base matrix
+        double[][] baseMatrix = matrixY ? LUMINANCE_MATRIX : CHROMINANCE_MATRIX;
+
+        // Create the result matrix
         Matrix result = new Matrix(blockSize, blockSize);
 
-        // Calculate scale factor for resizing
-        int scaleFactor = blockSize / 8;
-
-        // Fill matrix with scaled values
-        for (int i = 0; i < blockSize; i++) {
-            for (int j = 0; j < blockSize; j++) {
-                // Map position to original 8x8 matrix
-                int sourceRow = i / scaleFactor;
-                int sourceCol = j / scaleFactor;
-
-                // Apply quality factor
-                double value = baseMatrix[sourceRow][sourceCol] * alpha;
-                result.set(i, j, value);
+        // Resize and scale the matrix
+        if (blockSize == 8) {
+            // No resize needed, just apply quality scaling
+            for (int i = 0; i < 8; i++) {
+                for (int j = 0; j < 8; j++) {
+                    result.set(i, j, alpha * baseMatrix[i][j]);
+                }
+            }
+        } else if (blockSize < 8) {
+            // Downsize the matrix by skipping elements
+            int step = 8 / blockSize;
+            for (int i = 0; i < blockSize; i++) {
+                for (int j = 0; j < blockSize; j++) {
+                    result.set(i, j, alpha * baseMatrix[i * step][j * step]);
+                }
+            }
+        } else {
+            // Upsize the matrix by duplicating elements
+            int step = blockSize / 8;
+            for (int i = 0; i < blockSize; i++) {
+                for (int j = 0; j < blockSize; j++) {
+                    result.set(i, j, alpha * baseMatrix[i / step][j / step]);
+                }
             }
         }
 
@@ -75,12 +84,13 @@ public class Quantization {
     }
 
     /**
-     * Quantize a matrix using JPEG quantization
+     * Quantizes a matrix using the specified parameters.
+     * Formula: Squv = [Suv / Quv]
      *
-     * @param input Input matrix
-     * @param blockSize Block size for processing
-     * @param quality Quality factor (1-100)
-     * @param matrixY If true, uses Y quantization matrix, otherwise uses C matrix
+     * @param input Matrix to quantize
+     * @param blockSize Size of blocks for quantization
+     * @param quality Quality value (1-100)
+     * @param matrixY True for luminance, false for chrominance
      * @return Quantized matrix
      */
     public static Matrix quantize(Matrix input, int blockSize, double quality, boolean matrixY) {
@@ -88,115 +98,115 @@ public class Quantization {
             return null;
         }
 
+        Matrix quantMatrix = getQuantizationMatrix(blockSize, quality, matrixY);
+        Matrix result = new Matrix(input.getRowDimension(), input.getColumnDimension());
+
         int rows = input.getRowDimension();
         int cols = input.getColumnDimension();
-        Matrix output = new Matrix(rows, cols);
 
-        // Get quantization matrix
-        Matrix quantMatrix = getQuantizationMatrix(blockSize, quality, matrixY);
+        // Process the input in blocks
+        for (int blockRow = 0; blockRow < rows; blockRow += blockSize) {
+            for (int blockCol = 0; blockCol < cols; blockCol += blockSize) {
+                // Determine actual block dimensions (may be smaller at edges)
+                int endRow = Math.min(blockRow + blockSize - 1, rows - 1);
+                int endCol = Math.min(blockCol + blockSize - 1, cols - 1);
+                int blockHeight = endRow - blockRow + 1;
+                int blockWidth = endCol - blockCol + 1;
 
-        // Process image in blocks
-        for (int i = 0; i < rows; i += blockSize) {
-            for (int j = 0; j < cols; j += blockSize) {
-                // Determine block boundaries (handle edge cases)
-                int endRow = Math.min(i + blockSize - 1, rows - 1);
-                int endCol = Math.min(j + blockSize - 1, cols - 1);
-                int blockHeight = endRow - i + 1;
-                int blockWidth = endCol - j + 1;
-
-                // Only process full blocks
+                // Only process full-sized blocks
                 if (blockHeight == blockSize && blockWidth == blockSize) {
-                    // Extract block
-                    Matrix block = input.getMatrix(i, endRow, j, endCol);
-
-                    // Create quantized block
+                    Matrix block = input.getMatrix(blockRow, endRow, blockCol, endCol);
                     Matrix quantizedBlock = new Matrix(blockSize, blockSize);
 
-                    // Quantize each value in the block
-                    for (int m = 0; m < blockSize; m++) {
-                        for (int n = 0; n < blockSize; n++) {
-                            double value = block.get(m, n) / quantMatrix.get(m, n);
+                    // Apply quantization to each element
+                    for (int i = 0; i < blockSize; i++) {
+                        for (int j = 0; j < blockSize; j++) {
+                            double value = block.get(i, j) / quantMatrix.get(i, j);
 
-                            // Special rounding rules
+                            // Apply special rounding as specified
                             if (value > -0.2 && value < 0.2) {
-                                // Round to 2 decimal places for small values
+                                // Round to 2 decimal places for values between -0.2 and 0.2
                                 value = Math.round(value * 100) / 100.0;
                             } else {
                                 // Round to 1 decimal place for other values
                                 value = Math.round(value * 10) / 10.0;
                             }
 
-                            quantizedBlock.set(m, n, value);
+                            quantizedBlock.set(i, j, value);
                         }
                     }
 
-                    // Put block back into output
-                    output.setMatrix(i, endRow, j, endCol, quantizedBlock);
+                    // Place the quantized block back
+                    result.setMatrix(blockRow, endRow, blockCol, endCol, quantizedBlock);
                 } else {
-                    // For partial blocks, just copy original values
-                    for (int r = i; r <= endRow; r++) {
-                        for (int c = j; c <= endCol; c++) {
-                            output.set(r, c, input.get(r, c));
+                    // For partial blocks, just copy the original values
+                    for (int r = blockRow; r <= endRow; r++) {
+                        for (int c = blockCol; c <= endCol; c++) {
+                            result.set(r, c, input.get(r, c));
                         }
                     }
                 }
             }
         }
 
-        return output;
+        return result;
     }
 
     /**
-     * Perform inverse quantization
+     * Applies inverse quantization to a quantized matrix.
+     * Formula: Siquv = Squv * Quv
      *
-     * @param input Quantized matrix to be inverse-quantized
-     * @param blockSize Block size for processing
-     * @param quality Quality factor (1-100)
-     * @param matrixY If true, uses Y quantization matrix, otherwise uses C matrix
-     * @return Inverse-quantized matrix
+     * @param input Quantized matrix
+     * @param blockSize Size of blocks for inverse quantization
+     * @param quality Quality value (1-100)
+     * @param matrixY True for luminance, false for chrominance
+     * @return Inverse quantized matrix
      */
     public static Matrix inverseQuantize(Matrix input, int blockSize, double quality, boolean matrixY) {
         if (input == null) {
             return null;
         }
 
+        Matrix quantMatrix = getQuantizationMatrix(blockSize, quality, matrixY);
+        Matrix result = new Matrix(input.getRowDimension(), input.getColumnDimension());
+
         int rows = input.getRowDimension();
         int cols = input.getColumnDimension();
-        Matrix output = new Matrix(rows, cols);
 
-        // Get quantization matrix
-        Matrix quantMatrix = getQuantizationMatrix(blockSize, quality, matrixY);
+        // Process the input in blocks
+        for (int blockRow = 0; blockRow < rows; blockRow += blockSize) {
+            for (int blockCol = 0; blockCol < cols; blockCol += blockSize) {
+                // Determine actual block dimensions (may be smaller at edges)
+                int endRow = Math.min(blockRow + blockSize - 1, rows - 1);
+                int endCol = Math.min(blockCol + blockSize - 1, cols - 1);
+                int blockHeight = endRow - blockRow + 1;
+                int blockWidth = endCol - blockCol + 1;
 
-        // Process image in blocks
-        for (int i = 0; i < rows; i += blockSize) {
-            for (int j = 0; j < cols; j += blockSize) {
-                // Determine block boundaries (handle edge cases)
-                int endRow = Math.min(i + blockSize - 1, rows - 1);
-                int endCol = Math.min(j + blockSize - 1, cols - 1);
-                int blockHeight = endRow - i + 1;
-                int blockWidth = endCol - j + 1;
-
-                // Only process full blocks
+                // Only process full-sized blocks
                 if (blockHeight == blockSize && blockWidth == blockSize) {
-                    // Extract block
-                    Matrix block = input.getMatrix(i, endRow, j, endCol);
+                    Matrix block = input.getMatrix(blockRow, endRow, blockCol, endCol);
+                    Matrix invQuantizedBlock = new Matrix(blockSize, blockSize);
 
-                    // Inverse quantize block by element-wise multiplication
-                    Matrix invQuantizedBlock = block.arrayTimes(quantMatrix);
+                    // Apply inverse quantization to each element
+                    for (int i = 0; i < blockSize; i++) {
+                        for (int j = 0; j < blockSize; j++) {
+                            invQuantizedBlock.set(i, j, block.get(i, j) * quantMatrix.get(i, j));
+                        }
+                    }
 
-                    // Put block back into output
-                    output.setMatrix(i, endRow, j, endCol, invQuantizedBlock);
+                    // Place the inverse quantized block back
+                    result.setMatrix(blockRow, endRow, blockCol, endCol, invQuantizedBlock);
                 } else {
-                    // For partial blocks, just copy original values
-                    for (int r = i; r <= endRow; r++) {
-                        for (int c = j; c <= endCol; c++) {
-                            output.set(r, c, input.get(r, c));
+                    // For partial blocks, just copy the original values
+                    for (int r = blockRow; r <= endRow; r++) {
+                        for (int c = blockCol; c <= endCol; c++) {
+                            result.set(r, c, input.get(r, c));
                         }
                     }
                 }
             }
         }
 
-        return output;
+        return result;
     }
 }
