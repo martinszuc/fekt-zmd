@@ -11,9 +11,12 @@ import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
+import javafx.scene.paint.Color;
+import javafx.scene.text.TextAlignment;
 import javafx.stage.FileChooser;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.util.Duration;
 import javafx.util.Pair;
 import jpeg.Process;
 import utils.Logger;
@@ -24,7 +27,6 @@ import watermarking.frequency.DCTWatermarking;
 import watermarking.spatial.LSBWatermarking;
 
 import javax.imageio.ImageIO;
-import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
@@ -36,6 +38,9 @@ import java.util.List;
 
 /**
  * Enhanced dialog for watermarking operations with improved attack simulation UI.
+ * This dialog provides functionality for embedding and extracting watermarks using
+ * both spatial and frequency domain techniques, as well as testing their robustness
+ * against various attacks.
  */
 public class WatermarkingDialog extends Stage {
 
@@ -85,6 +90,9 @@ public class WatermarkingDialog extends Stage {
             return description;
         }
     }
+
+    // Status label for notifications
+    private Label statusLabel;
 
     // Instance variables for storing process state
     private Process originalProcess;
@@ -148,7 +156,7 @@ public class WatermarkingDialog extends Stage {
         initModality(Modality.APPLICATION_MODAL);
         initOwner(parentStage);
         setTitle("Image Watermarking");
-        setMinWidth(1200);
+        setMinWidth(1400);
         setMinHeight(900);
 
         // Create the UI
@@ -173,10 +181,13 @@ public class WatermarkingDialog extends Stage {
     /**
      * Creates the attack simulation panel with improved layout
      */
-    private TitledPane createAttackControls() {
+    private VBox createAttackControls() {
         VBox attackBox = new VBox(16);
         attackBox.setPadding(new Insets(10));
         attackBox.setFillWidth(true);
+
+        Label titleLabel = new Label("Attack Simulation");
+        titleLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
 
         // ComboBox for selecting attack type
         ComboBox<AttackType> attackTypeCombo = new ComboBox<>();
@@ -236,7 +247,7 @@ public class WatermarkingDialog extends Stage {
         // Apply attack action
         applyAttackButton.setOnAction(e -> {
             if (watermarkedProcess == null) {
-                showAlert(Alert.AlertType.WARNING, "No Image", "Please embed a watermark first.");
+                showStatus("Please embed a watermark first", "error");
                 return;
             }
 
@@ -291,14 +302,13 @@ public class WatermarkingDialog extends Stage {
                 updateImageViews();
 
                 // Show success message
-                showAlert(Alert.AlertType.INFORMATION, "Attack Applied",
-                        "The " + selectedAttack + " attack was applied successfully.\n" +
-                                "You can now extract the watermark to evaluate the result.");
+                showStatus("Attack applied: " + selectedAttack, "success");
             }
         });
 
         // Add everything to attack box
         attackBox.getChildren().addAll(
+                titleLabel,
                 new Label("Select Attack Type:"),
                 attackTypeCombo,
                 descriptionLabel,
@@ -308,17 +318,18 @@ public class WatermarkingDialog extends Stage {
                 applyAttackButton
         );
 
-        TitledPane attackPane = new TitledPane("Attack Simulation", attackBox);
-        attackPane.setExpanded(false);
-        attackPane.setMaxHeight(Double.MAX_VALUE);
-        return attackPane;
+        return attackBox;
     }
 
     private void createControls(BorderPane root) {
-        // Create left control panel
-        VBox controlPanel = new VBox(10);
-        controlPanel.setPadding(new Insets(10));
-        controlPanel.setPrefWidth(350);
+        // Create left control panel for watermarking methods
+        VBox watermarkControlPanel = new VBox(10);
+        watermarkControlPanel.setPadding(new Insets(10));
+        watermarkControlPanel.setPrefWidth(280);
+
+        Label watermarkMethodTitle = new Label("Watermarking Configuration");
+        watermarkMethodTitle.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
+        watermarkControlPanel.getChildren().add(watermarkMethodTitle);
 
         // Method selection
         Label methodLabel = new Label("Watermarking Method:");
@@ -378,20 +389,8 @@ public class WatermarkingDialog extends Stage {
         evaluateButton.setMaxWidth(Double.MAX_VALUE);
         evaluateButton.setOnAction(e -> evaluateWatermark());
 
-        // Results table for tracking multiple evaluations
-        resultsTable = createResultsTable();
-
-        // Attack simulation
-        TitledPane attackPane = createAttackControls();
-
-        // Wrap control panel in a scroll pane for better usability
-        ScrollPane scrollPane = new ScrollPane(controlPanel);
-        scrollPane.setFitToWidth(true);
-        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-
-        // Add everything to the control panel
-        controlPanel.getChildren().addAll(
+        // Add everything to the watermark control panel
+        watermarkControlPanel.getChildren().addAll(
                 methodLabel, methodComboBox,
                 componentLabel, componentComboBox,
                 new Separator(),
@@ -406,16 +405,29 @@ public class WatermarkingDialog extends Stage {
                 evaluateButton
         );
 
-        // Add attack pane at the end
-        controlPanel.getChildren().add(new Separator());
-        controlPanel.getChildren().add(attackPane);
+        // Create attack controls panel
+        VBox attackControlPanel = createAttackControls();
+        attackControlPanel.setPrefWidth(280);
 
-        // Create results panel on the right
-        BorderPane resultsPanel = createResultsPanel();
+        // Create container for controls on the left side
+        VBox leftSideControls = new VBox(20);
+        leftSideControls.getChildren().addAll(watermarkControlPanel, attackControlPanel);
 
-        // Add panels to root
-        root.setLeft(scrollPane);
-        root.setCenter(resultsPanel);
+        // Create the right panel with images and results
+        BorderPane contentPanel = createContentPanel();
+
+        // Status label for notifications
+        statusLabel = new Label("");
+        statusLabel.setTextAlignment(TextAlignment.CENTER);
+        statusLabel.setMaxWidth(Double.MAX_VALUE);
+        statusLabel.setPadding(new Insets(5));
+        statusLabel.setMinHeight(30);
+        root.setBottom(statusLabel);
+
+        // Add everything to root
+        HBox mainContent = new HBox(10, leftSideControls, contentPanel);
+        HBox.setHgrow(contentPanel, Priority.ALWAYS);
+        root.setCenter(mainContent);
     }
 
     private VBox createLSBOptions() {
@@ -492,7 +504,7 @@ public class WatermarkingDialog extends Stage {
         return options;
     }
 
-    private BorderPane createResultsPanel() {
+    private BorderPane createContentPanel() {
         BorderPane panel = new BorderPane();
 
         // Create grid for images
@@ -503,6 +515,7 @@ public class WatermarkingDialog extends Stage {
 
         // Original image view
         Label originalLabel = new Label("Original Image:");
+        originalLabel.setStyle("-fx-font-weight: bold;");
         originalImageView = new ImageView();
         originalImageView.setFitWidth(250);
         originalImageView.setFitHeight(250);
@@ -510,6 +523,7 @@ public class WatermarkingDialog extends Stage {
 
         // Watermark image view
         Label watermarkLabel = new Label("Watermark:");
+        watermarkLabel.setStyle("-fx-font-weight: bold;");
         watermarkImageView = new ImageView();
         watermarkImageView.setFitWidth(250);
         watermarkImageView.setFitHeight(250);
@@ -517,6 +531,7 @@ public class WatermarkingDialog extends Stage {
 
         // Watermarked image view
         Label watermarkedLabel = new Label("Watermarked Image:");
+        watermarkedLabel.setStyle("-fx-font-weight: bold;");
         watermarkedImageView = new ImageView();
         watermarkedImageView.setFitWidth(250);
         watermarkedImageView.setFitHeight(250);
@@ -524,6 +539,7 @@ public class WatermarkingDialog extends Stage {
 
         // Extracted watermark view
         Label extractedLabel = new Label("Extracted Watermark:");
+        extractedLabel.setStyle("-fx-font-weight: bold;");
         extractedWatermarkView = new ImageView();
         extractedWatermarkView.setFitWidth(250);
         extractedWatermarkView.setFitHeight(250);
@@ -545,39 +561,49 @@ public class WatermarkingDialog extends Stage {
         VBox resultsBox = new VBox(10);
         resultsBox.setPadding(new Insets(10));
 
+        // Create a horizontal layout for dimension inputs and evaluation results
+        HBox topResultsRow = new HBox(20);
+
         // Watermark dimension input (for extraction)
-        TitledPane dimensionsPane = new TitledPane();
-        dimensionsPane.setText("Watermark Dimensions for Extraction");
+        VBox dimensionsPane = new VBox(10);
+        dimensionsPane.setBorder(new Border(new BorderStroke(Color.LIGHTGRAY, BorderStrokeStyle.SOLID,
+                new CornerRadii(5), BorderWidths.DEFAULT)));
+        dimensionsPane.setPadding(new Insets(10));
+
+        Label dimensionsTitle = new Label("Watermark Dimensions");
+        dimensionsTitle.setStyle("-fx-font-weight: bold;");
 
         GridPane dimensionsGrid = new GridPane();
         dimensionsGrid.setHgap(10);
         dimensionsGrid.setVgap(5);
-        dimensionsGrid.setPadding(new Insets(10));
 
         Label widthLabel = new Label("Width:");
         watermarkWidthField = new TextField("64");
-        watermarkWidthField.setPrefWidth(100);
+        watermarkWidthField.setPrefWidth(80);
 
         Label heightLabel = new Label("Height:");
         watermarkHeightField = new TextField("64");
-        watermarkHeightField.setPrefWidth(100);
+        watermarkHeightField.setPrefWidth(80);
 
         dimensionsGrid.add(widthLabel, 0, 0);
         dimensionsGrid.add(watermarkWidthField, 1, 0);
         dimensionsGrid.add(heightLabel, 2, 0);
         dimensionsGrid.add(watermarkHeightField, 3, 0);
 
-        dimensionsPane.setContent(dimensionsGrid);
-        dimensionsPane.setCollapsible(false);
+        dimensionsPane.getChildren().addAll(dimensionsTitle, dimensionsGrid);
 
         // Evaluation results
-        TitledPane evaluationPane = new TitledPane();
-        evaluationPane.setText("Watermark Evaluation");
+        VBox evaluationPane = new VBox(10);
+        evaluationPane.setBorder(new Border(new BorderStroke(Color.LIGHTGRAY, BorderStrokeStyle.SOLID,
+                new CornerRadii(5), BorderWidths.DEFAULT)));
+        evaluationPane.setPadding(new Insets(10));
+
+        Label evaluationTitle = new Label("Watermark Evaluation");
+        evaluationTitle.setStyle("-fx-font-weight: bold;");
 
         GridPane evaluationGrid = new GridPane();
         evaluationGrid.setHgap(10);
         evaluationGrid.setVgap(5);
-        evaluationGrid.setPadding(new Insets(10));
 
         Label berTitleLabel = new Label("Bit Error Rate (BER):");
         berLabel = new Label("N/A");
@@ -592,21 +618,23 @@ public class WatermarkingDialog extends Stage {
         evaluationGrid.add(ncTitleLabel, 0, 1);
         evaluationGrid.add(ncLabel, 1, 1);
 
-        evaluationPane.setContent(evaluationGrid);
-        evaluationPane.setCollapsible(false);
+        evaluationPane.getChildren().addAll(evaluationTitle, evaluationGrid);
+
+        // Add both panes to the top results row
+        topResultsRow.getChildren().addAll(dimensionsPane, evaluationPane);
+        HBox.setHgrow(dimensionsPane, Priority.ALWAYS);
+        HBox.setHgrow(evaluationPane, Priority.ALWAYS);
 
         // Results table
-        VBox tableContainer = new VBox(5);
         Label tableLabel = new Label("Test Results:");
         tableLabel.setStyle("-fx-font-weight: bold;");
-        tableContainer.getChildren().addAll(tableLabel, resultsTable);
-        tableContainer.setPadding(new Insets(10, 0, 0, 0));
+        resultsTable = createResultsTable();
 
         // Add to results box
         resultsBox.getChildren().addAll(
-                dimensionsPane,
-                evaluationPane,
-                tableContainer
+                topResultsRow,
+                tableLabel,
+                resultsTable
         );
 
         // Add to panel
@@ -680,10 +708,11 @@ public class WatermarkingDialog extends Stage {
                 // Update image view
                 updateImageViews();
 
+                showStatus("Watermark loaded: " + file.getName(), "success");
                 Logger.info("Watermark image loaded: " + file.getAbsolutePath());
             } catch (IOException e) {
                 Logger.error("Error loading watermark: " + e.getMessage());
-                showAlert(Alert.AlertType.ERROR, "Error", "Error loading watermark image: " + e.getMessage());
+                showStatus("Error loading watermark", "error");
             }
         }
     }
@@ -707,10 +736,11 @@ public class WatermarkingDialog extends Stage {
                 watermarkWidthField.setText(String.valueOf(size));
                 watermarkHeightField.setText(String.valueOf(size));
 
+                showStatus("Custom watermark created (" + size + "x" + size + ")", "success");
                 Logger.info("Custom watermark created with size " + size + "x" + size);
             } catch (NumberFormatException e) {
                 Logger.error("Invalid watermark size: " + e.getMessage());
-                showAlert(Alert.AlertType.ERROR, "Error", "Invalid size. Please enter a positive integer.");
+                showStatus("Invalid size. Please enter a positive integer", "error");
             }
         });
     }
@@ -727,11 +757,11 @@ public class WatermarkingDialog extends Stage {
         Graphics2D g2d = watermarkImage.createGraphics();
 
         // Fill with white
-        g2d.setColor(Color.WHITE);
+        g2d.setColor(java.awt.Color.WHITE);
         g2d.fillRect(0, 0, width, height);
 
         // Draw black pattern (example: checkerboard)
-        g2d.setColor(Color.BLACK);
+        g2d.setColor(java.awt.Color.BLACK);
         int squareSize = Math.max(8, width / 8);
 
         for (int y = 0; y < height; y += squareSize) {
@@ -744,7 +774,7 @@ public class WatermarkingDialog extends Stage {
 
         // Draw a simple shape in the center
         int centerSize = Math.min(width, height) / 2;
-        g2d.setColor(Color.BLACK);
+        g2d.setColor(java.awt.Color.BLACK);
         g2d.fillOval(width/2 - centerSize/2, height/2 - centerSize/2, centerSize, centerSize);
 
         g2d.dispose();
@@ -756,7 +786,7 @@ public class WatermarkingDialog extends Stage {
     private void embedWatermark() {
         if (watermarkImage == null) {
             Logger.error("No watermark image available");
-            showAlert(Alert.AlertType.ERROR, "Error", "Please load or create a watermark image first.");
+            showStatus("Please load or create a watermark image first", "error");
             return;
         }
 
@@ -854,18 +884,18 @@ public class WatermarkingDialog extends Stage {
             ncLabel.setText("N/A");
 
             Logger.info("Watermark embedded successfully using " + method + " method");
-            showAlert(Alert.AlertType.INFORMATION, "Success", "Watermark embedded successfully");
+            showStatus("Watermark embedded successfully", "success");
 
         } catch (Exception e) {
             Logger.error("Error embedding watermark: " + e.getMessage());
-            showAlert(Alert.AlertType.ERROR, "Error", "Error embedding watermark: " + e.getMessage());
+            showStatus("Error embedding watermark: " + e.getMessage(), "error");
         }
     }
 
     private void extractWatermark() {
         if (watermarkedProcess == null) {
             Logger.error("No watermarked image available");
-            showAlert(Alert.AlertType.ERROR, "Error", "Please embed a watermark first.");
+            showStatus("Please embed a watermark first", "error");
             return;
         }
 
@@ -929,19 +959,18 @@ public class WatermarkingDialog extends Stage {
             }
 
             Logger.info("Watermark extracted successfully using " + method + " method");
-            showAlert(Alert.AlertType.INFORMATION, "Success", "Watermark extracted successfully");
+            showStatus("Watermark extracted successfully", "success");
 
         } catch (Exception e) {
             Logger.error("Error extracting watermark: " + e.getMessage());
-            showAlert(Alert.AlertType.ERROR, "Error", "Error extracting watermark: " + e.getMessage());
+            showStatus("Error extracting watermark: " + e.getMessage(), "error");
         }
     }
 
     private void evaluateWatermark() {
         if (embeddedWatermark == null || extractedWatermark == null) {
             Logger.error("Cannot evaluate: original or extracted watermark missing");
-            showAlert(Alert.AlertType.ERROR, "Error",
-                    "Both embedded and extracted watermarks must be available for evaluation.");
+            showStatus("Both embedded and extracted watermarks must be available for evaluation", "error");
             return;
         }
 
@@ -973,10 +1002,33 @@ public class WatermarkingDialog extends Stage {
             resultsTable.getItems().add(result);
             resultsTable.refresh();
 
+            showStatus("Evaluation complete: BER=" + String.format("%.4f", ber) + ", NC=" + String.format("%.4f", nc), "success");
             Logger.info("Watermark evaluation completed: BER=" + ber + ", NC=" + nc);
         } catch (Exception e) {
             Logger.error("Error evaluating watermark: " + e.getMessage());
-            showAlert(Alert.AlertType.ERROR, "Error", "Error evaluating watermark: " + e.getMessage());
+            showStatus("Error evaluating watermark: " + e.getMessage(), "error");
+        }
+    }
+
+    /**
+     * Displays a status message at the bottom of the window.
+     * @param message The message to display
+     * @param type The type of message (success, error, info)
+     */
+    private void showStatus(String message, String type) {
+        statusLabel.setText(message);
+
+        // Set style based on message type
+        switch (type) {
+            case "success":
+                statusLabel.setStyle("-fx-background-color: #e7f3e7; -fx-text-fill: #2e7d32; -fx-padding: 5px;");
+                break;
+            case "error":
+                statusLabel.setStyle("-fx-background-color: #fdecea; -fx-text-fill: #d32f2f; -fx-padding: 5px;");
+                break;
+            default: // info
+                statusLabel.setStyle("-fx-background-color: #e3f2fd; -fx-text-fill: #0277bd; -fx-padding: 5px;");
+                break;
         }
     }
 
@@ -1014,13 +1066,5 @@ public class WatermarkingDialog extends Stage {
             Logger.error("Error converting BufferedImage to JavaFX Image: " + e.getMessage());
             return null;
         }
-    }
-
-    private void showAlert(Alert.AlertType type, String title, String message) {
-        Alert alert = new Alert(type);
-        alert.setTitle(title);
-        alert.setHeaderText(null);
-        alert.setContentText(message);
-        alert.showAndWait();
     }
 }

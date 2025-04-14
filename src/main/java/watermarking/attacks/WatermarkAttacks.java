@@ -17,17 +17,22 @@ import jpeg.Process;
 import utils.Logger;
 
 /**
- * Class containing different attack methods to test watermark robustness.
- * Implements multiple attack types as specified in the project requirements.
+ * Implements various attacks to test watermark robustness.
+ *
+ * This class provides methods for simulating common attacks on watermarked images
+ * to evaluate the robustness of different watermarking techniques. The attacks
+ * include compression, geometric transformations, and image manipulations that
+ * might occur during normal image processing.
  */
 public class WatermarkAttacks {
 
     /**
-     * Applies a JPEG compression attack to the image using ImageIO.
-     * This method uses Java's built-in JPEG compression capabilities.
+     * Applies JPEG compression attack using Java's built-in compression capabilities.
+     * JPEG compression uses lossy DCT-based encoding, which can significantly
+     * degrade watermarks, especially those in the spatial domain.
      *
      * @param image Original image
-     * @param quality Compression quality (1-100)
+     * @param quality Compression quality (1-100, where 100 is highest quality)
      * @return Attacked image
      */
     public static BufferedImage jpegCompressionAttack(BufferedImage image, float quality) {
@@ -67,8 +72,9 @@ public class WatermarkAttacks {
     }
 
     /**
-     * Applies a JPEG compression attack using the application's internal JPEG pipeline.
-     * This method uses the transform-quantize-inverse process to simulate JPEG compression.
+     * Applies JPEG compression attack using the application's internal JPEG pipeline.
+     * This method simulates JPEG compression by using the DCT transform, quantization,
+     * and inverse processes from the application's JPEG implementation.
      *
      * @param image Original image
      * @param quality Compression quality (1-100)
@@ -80,18 +86,18 @@ public class WatermarkAttacks {
         // Create Process object from image
         Process process = new Process(image);
 
-        // Convert to YCbCr
+        // Convert to YCbCr color space
         process.convertToYCbCr();
 
-        // DCT Transform
-        int blockSize = 8; // Standard JPEG block size
+        // Standard JPEG block size
+        int blockSize = 8;
 
         // Create proper copies of the matrices
         process.setY(process.getY().copy());
         process.setCb(process.getCb().copy());
         process.setCr(process.getCr().copy());
 
-        // Apply transform
+        // Apply DCT transform
         process.setY(jpeg.Transform.transform(process.getY(), TransformType.DCT, blockSize));
         process.setCb(jpeg.Transform.transform(process.getCb(), TransformType.DCT, blockSize));
         process.setCr(jpeg.Transform.transform(process.getCr(), TransformType.DCT, blockSize));
@@ -99,7 +105,7 @@ public class WatermarkAttacks {
         // Quantize with given quality
         process.quantize(quality, blockSize);
 
-        // Inverse quantize
+        // Inverse quantize - simulates data loss from quantization
         process.inverseQuantize();
 
         // Inverse transform
@@ -107,7 +113,7 @@ public class WatermarkAttacks {
         process.setCb(jpeg.Transform.inverseTransform(process.getCb(), TransformType.DCT, blockSize));
         process.setCr(jpeg.Transform.inverseTransform(process.getCr(), TransformType.DCT, blockSize));
 
-        // Convert back to RGB
+        // Convert back to RGB color space
         process.convertToRGB();
 
         Logger.info("Internal JPEG compression attack completed with quality " + quality);
@@ -115,11 +121,12 @@ public class WatermarkAttacks {
     }
 
     /**
-     * Applies a PNG compression attack to the image.
-     * PNG is lossless, but we simulate different compression levels.
+     * Applies PNG compression attack to the image.
+     * Although PNG is lossless, each save/load cycle can introduce small
+     * artifacts due to rounding errors, which can affect watermarks.
      *
      * @param image Original image
-     * @param compressionLevel Compression level (0-9)
+     * @param compressionLevel Compression level (1-9)
      * @return Attacked image
      */
     public static BufferedImage pngCompressionAttack(BufferedImage image, int compressionLevel) {
@@ -135,7 +142,6 @@ public class WatermarkAttacks {
 
             // Perform multiple save/load cycles based on inverse of compression level
             // Higher compression level = fewer cycles (inverse relationship)
-            // This is just a simulation since PNG is lossless
             int cycles = Math.max(1, 10 - compressionLevel);
 
             for (int i = 0; i < cycles; i++) {
@@ -155,9 +161,12 @@ public class WatermarkAttacks {
     }
 
     /**
-     * Applies a rotation attack to the image.
+     * Applies rotation attack to the image.
+     * Rotation can severely damage watermarks, especially when the angle
+     * is not a multiple of 90 degrees, requiring interpolation.
+     *
      * @param image Original image
-     * @param degrees Rotation in degrees
+     * @param degrees Rotation angle in degrees
      * @return Attacked image
      */
     public static BufferedImage rotationAttack(BufferedImage image, double degrees) {
@@ -225,9 +234,12 @@ public class WatermarkAttacks {
     }
 
     /**
-     * Applies a resize attack to the image.
+     * Applies resize attack to the image.
+     * Resizing first shrinks the image, then expands it back to original dimensions,
+     * causing interpolation errors that can damage watermarks.
+     *
      * @param image Original image
-     * @param scale Scale factor (0.0-1.0)
+     * @param scale Scale factor (0.0-1.0) for the intermediate size
      * @return Attacked image
      */
     public static BufferedImage resizeAttack(BufferedImage image, double scale) {
@@ -261,7 +273,10 @@ public class WatermarkAttacks {
     }
 
     /**
-     * Applies a mirroring attack to the image (horizontal flip).
+     * Applies mirroring attack to the image (horizontal flip).
+     * Mirroring can completely destroy many watermarking schemes, especially
+     * those based on spatial patterns.
+     *
      * @param image Original image
      * @return Attacked (mirrored) image
      */
@@ -283,7 +298,10 @@ public class WatermarkAttacks {
     }
 
     /**
-     * Applies a cropping attack to the image.
+     * Applies cropping attack to the image.
+     * Cropping removes the edges of the image and then resizes back to
+     * the original dimensions, which can destroy parts of the watermark.
+     *
      * @param image Original image
      * @param cropPercentage Percentage to crop from each edge (0-0.5)
      * @return Attacked image

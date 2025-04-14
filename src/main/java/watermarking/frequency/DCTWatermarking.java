@@ -11,24 +11,21 @@ import java.awt.image.BufferedImage;
 /**
  * Implementation of watermarking using DCT coefficient pair modification.
  *
- * This class implements the DCT watermarking technique described in the project
- * documentation. The method embeds watermark bits by modifying coefficient pairs
- * in the frequency domain after DCT transformation.
+ * This class implements a frequency domain watermarking technique that embeds
+ * watermark bits by modifying coefficient pairs in the DCT domain. The method
+ * provides good robustness against various attacks while maintaining visual
+ * imperceptibility of the watermark.
  */
 public class DCTWatermarking {
 
     /**
      * Embeds a watermark into an image using DCT coefficient modification.
      *
-     * The algorithm works as follows:
-     * 1. Convert watermark to binary format
-     * 2. Divide the host image into blocks of specified size
-     * 3. Transform each block using DCT
-     * 4. Modify coefficient pairs based on watermark bits:
-     *    - For bit 0: Ensure coef1 > coef2
-     *    - For bit 1: Ensure coef1 <= coef2
-     * 5. Apply strength parameter to increase robustness
-     * 6. Inverse transform each block
+     * The algorithm works by dividing the host image into blocks, applying DCT
+     * to each block, and then encoding watermark bits by modifying selected coefficient
+     * pairs according to specific rules. The strength parameter controls the robustness
+     * of the watermark, with higher values improving robustness at the expense of
+     * visual quality.
      *
      * @param imageMatrix The matrix containing image data (Y, Cb, or Cr)
      * @param watermark The watermark image (should be binary)
@@ -48,12 +45,12 @@ public class DCTWatermarking {
             return null;
         }
 
-        // Step 1: Convert watermark to binary
+        // Convert watermark to binary format
         boolean[][] binaryWatermark = convertToBinary(watermark);
         int watermarkWidth = binaryWatermark[0].length;
         int watermarkHeight = binaryWatermark.length;
 
-        // Step 2: Get image dimensions and calculate blocks
+        // Get image dimensions and calculate blocks
         int imageWidth = imageMatrix.getColumnDimension();
         int imageHeight = imageMatrix.getRowDimension();
 
@@ -61,16 +58,16 @@ public class DCTWatermarking {
         int blocksInRow = imageWidth / blockSize;
         int blocksInCol = imageHeight / blockSize;
 
-        // Check if watermark can fit
+        // Verify watermark can fit in the available blocks
         if (watermarkWidth * watermarkHeight > blocksInRow * blocksInCol) {
             Logger.error("Watermark is too large for the image with the given block size");
             return null;
         }
 
-        // Make a copy of the input matrix
+        // Create a copy of the input matrix
         Matrix watermarkedMatrix = imageMatrix.copy();
 
-        // Step 3-6: Process each block
+        // Process each block to embed watermark bits
         int watermarkIdx = 0;
 
         for (int blockRow = 0; blockRow < blocksInCol; blockRow++) {
@@ -90,14 +87,14 @@ public class DCTWatermarking {
                         blockCol * blockSize, (blockCol + 1) * blockSize - 1
                 );
 
-                // Apply DCT
+                // Apply DCT transform to convert block to frequency domain
                 Matrix dctBlock = Transform.transform(block, TransformType.DCT, blockSize);
 
                 // Get coefficient values
                 double coef1 = dctBlock.get(coefPair1[0], coefPair1[1]);
                 double coef2 = dctBlock.get(coefPair2[0], coefPair2[1]);
 
-                // Step 4&5: Modify coefficients based on watermark bit
+                // Modify coefficients based on watermark bit
                 if (watermarkBit) {
                     // For bit 1: Make sure coef1 <= coef2
                     if (coef1 > coef2) {
@@ -126,10 +123,10 @@ public class DCTWatermarking {
                     }
                 }
 
-                // Apply inverse DCT
+                // Apply inverse DCT to convert back to spatial domain
                 Matrix idctBlock = Transform.inverseTransform(dctBlock, TransformType.DCT, blockSize);
 
-                // Place the block back
+                // Place the modified block back in the watermarked matrix
                 watermarkedMatrix.setMatrix(
                         blockRow * blockSize, (blockRow + 1) * blockSize - 1,
                         blockCol * blockSize, (blockCol + 1) * blockSize - 1,
@@ -149,13 +146,10 @@ public class DCTWatermarking {
     /**
      * Extracts a watermark from an image using DCT coefficient pairs.
      *
-     * The algorithm works as follows:
-     * 1. Divide the watermarked image into blocks of specified size
-     * 2. Transform each block using DCT
-     * 3. Extract watermark bits by comparing coefficient pairs:
-     *    - If coef1 > coef2: Bit value is 0
-     *    - If coef1 <= coef2: Bit value is 1
-     * 4. Reconstruct the watermark image from binary data
+     * The algorithm divides the watermarked image into blocks, applies DCT
+     * to each block, and extracts watermark bits by comparing coefficient pairs.
+     * The original embedding rules determine how bits are extracted: if coef1 > coef2,
+     * the bit is 0; otherwise, the bit is 1.
      *
      * @param watermarkedMatrix The watermarked matrix
      * @param blockSize The block size used for DCT
@@ -183,7 +177,7 @@ public class DCTWatermarking {
         int blocksInRow = imageWidth / blockSize;
         int blocksInCol = imageHeight / blockSize;
 
-        // Check if dimensions are valid
+        // Verify dimensions are valid
         if (width * height > blocksInRow * blocksInCol) {
             Logger.error("Specified watermark dimensions exceed available blocks");
             return null;
@@ -217,7 +211,7 @@ public class DCTWatermarking {
                 double coef1 = dctBlock.get(coefPair1[0], coefPair1[1]);
                 double coef2 = dctBlock.get(coefPair2[0], coefPair2[1]);
 
-                // Extract watermark bit
+                // Extract watermark bit based on coefficient relationship
                 extractedBits[watermarkY][watermarkX] = coef1 <= coef2;
 
                 watermarkIdx++;
@@ -241,8 +235,11 @@ public class DCTWatermarking {
     }
 
     /**
-     * Converts an image to binary format.
-     * Pixels with luminance > 128 are considered white (true), others are black (false).
+     * Converts an image to binary format based on luminance values.
+     * Pixels with luminance > 128 are considered white (true), others black (false).
+     *
+     * @param image Input image to convert to binary
+     * @return 2D array of boolean values representing binary image
      */
     private static boolean[][] convertToBinary(BufferedImage image) {
         int width = image.getWidth();
@@ -252,7 +249,7 @@ public class DCTWatermarking {
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 Color color = new Color(image.getRGB(x, y));
-                // Convert to binary using luminance
+                // Calculate luminance using standard coefficients
                 int luminance = (int)(0.299 * color.getRed() + 0.587 * color.getGreen() + 0.114 * color.getBlue());
                 binary[y][x] = luminance > 128;
             }
