@@ -2,6 +2,7 @@ package jpeg;
 
 import Jama.Matrix;
 import enums.SamplingType;
+import enums.TransformType;
 import utils.Logger;
 
 import java.awt.*;
@@ -324,6 +325,52 @@ public class Process {
      */
     public int getQuantizationBlockSize() {
         return quantizationBlockSize;
+    }
+
+    /**
+     * Applies DCT transformation to Y, Cb, and Cr components.
+     *
+     * @param transformType The type of transform to apply (DCT or WHT)
+     * @param blockSize The size of blocks to use for the transform
+     */
+    public void transform(TransformType transformType, int blockSize) {
+        if (!isYCbCrConverted || Y == null || Cb == null || Cr == null) {
+            Logger.warning("Cannot transform: YCbCr components not available");
+            return;
+        }
+
+        Logger.info("Transforming YCbCr components using " + transformType +
+                " with block size " + blockSize);
+
+        // Apply the transform to each component
+        Y = Transform.transform(Y, transformType, blockSize);
+        Cb = Transform.transform(Cb, transformType, blockSize);
+        Cr = Transform.transform(Cr, transformType, blockSize);
+
+        Logger.info("Transform completed");
+    }
+
+    /**
+     * Applies inverse DCT transformation to Y, Cb, and Cr components.
+     *
+     * @param transformType The type of transform to apply (DCT or WHT)
+     * @param blockSize The size of blocks to use for the transform
+     */
+    public void inverseTransform(TransformType transformType, int blockSize) {
+        if (!isYCbCrConverted || Y == null || Cb == null || Cr == null) {
+            Logger.warning("Cannot inverse transform: YCbCr components not available");
+            return;
+        }
+
+        Logger.info("Inverse transforming YCbCr components using " + transformType +
+                " with block size " + blockSize);
+
+        // Apply the inverse transform to each component
+        Y = Transform.inverseTransform(Y, transformType, blockSize);
+        Cb = Transform.inverseTransform(Cb, transformType, blockSize);
+        Cr = Transform.inverseTransform(Cr, transformType, blockSize);
+
+        Logger.info("Inverse transform completed");
     }
 
     // Getters

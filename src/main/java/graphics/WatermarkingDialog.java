@@ -2,11 +2,10 @@ package graphics;
 
 import Jama.Matrix;
 import enums.QualityType;
-import javafx.fxml.FXML;
-import javafx.fxml.FXMLLoader;
+import javafx.beans.property.SimpleStringProperty;
+import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
@@ -19,6 +18,7 @@ import javafx.util.Pair;
 import jpeg.Process;
 import utils.Logger;
 import watermarking.WatermarkEvaluation;
+import watermarking.WatermarkResult;
 import watermarking.attacks.WatermarkAttacks;
 import watermarking.frequency.DCTWatermarking;
 import watermarking.spatial.LSBWatermarking;
@@ -31,12 +31,15 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * Controller for the watermarking dialog window.
+ * Enhanced dialog for watermarking operations with improved attack simulation UI.
  */
 public class WatermarkingDialog extends Stage {
 
+    // Enumeration for watermarking methods
     private enum WatermarkMethod {
         LSB("LSB (Spatial Domain)"),
         DCT("DCT (Frequency Domain)");
@@ -53,12 +56,45 @@ public class WatermarkingDialog extends Stage {
         }
     }
 
+    // Enumeration for attack types
+    private enum AttackType {
+        JPEG_COMPRESSION("JPEG Compression", "Applies JPEG compression with specified quality"),
+        JPEG_COMPRESSION_INTERNAL("Internal JPEG Compression", "Uses application's compression pipeline"),
+        PNG_COMPRESSION("PNG Compression", "Applies PNG compression with specified level"),
+        ROTATION_45("Rotation 45°", "Rotates image by 45 degrees"),
+        ROTATION_90("Rotation 90°", "Rotates image by 90 degrees"),
+        RESIZE_75("Resize 75%", "Resizes image to 75% and back"),
+        RESIZE_50("Resize 50%", "Resizes image to 50% and back"),
+        MIRRORING("Mirroring", "Flips image horizontally"),
+        CROPPING("Cropping", "Crops image edges and resizes back");
+
+        private final String displayName;
+        private final String description;
+
+        AttackType(String displayName, String description) {
+            this.displayName = displayName;
+            this.description = description;
+        }
+
+        @Override
+        public String toString() {
+            return displayName;
+        }
+
+        public String getDescription() {
+            return description;
+        }
+    }
+
+    // Instance variables for storing process state
     private Process originalProcess;
     private BufferedImage watermarkImage;
     private BufferedImage embeddedWatermark;
     private BufferedImage extractedWatermark;
     private Process watermarkedProcess;
+    private List<WatermarkResult> results = new ArrayList<>();
 
+    // UI components for watermarking
     private ComboBox<WatermarkMethod> methodComboBox;
     private ComboBox<QualityType> componentComboBox;
     private Spinner<Integer> bitPlaneSpinner;
@@ -73,13 +109,16 @@ public class WatermarkingDialog extends Stage {
     private TextField watermarkWidthField;
     private TextField watermarkHeightField;
 
+    // UI components for images
     private ImageView originalImageView;
     private ImageView watermarkImageView;
     private ImageView watermarkedImageView;
     private ImageView extractedWatermarkView;
 
+    // UI components for results
     private Label berLabel;
     private Label ncLabel;
+    private TableView<WatermarkResult> resultsTable;
 
     private VBox lsbOptions;
     private VBox dctOptions;
@@ -92,12 +131,25 @@ public class WatermarkingDialog extends Stage {
     public WatermarkingDialog(Stage parentStage, Process process) {
         this.originalProcess = process;
 
+        // Auto-convert to YCbCr if not already converted
+        if (!originalProcess.isYCbCrConverted()) {
+            Alert confirmDialog = new Alert(Alert.AlertType.CONFIRMATION);
+            confirmDialog.setTitle("YCbCr Conversion");
+            confirmDialog.setHeaderText("Image is not in YCbCr format");
+            confirmDialog.setContentText("Watermarking requires YCbCr format. Convert now?");
+
+            if (confirmDialog.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK) {
+                originalProcess.convertToYCbCr();
+                Logger.info("Image automatically converted to YCbCr for watermarking");
+            }
+        }
+
         // Configure stage
         initModality(Modality.APPLICATION_MODAL);
         initOwner(parentStage);
         setTitle("Image Watermarking");
-        setMinWidth(1000);  // Increased from 900 to 1000
-        setMinHeight(750);  // Increased from 700 to 750
+        setMinWidth(1200);
+        setMinHeight(900);
 
         // Create the UI
         BorderPane root = new BorderPane();
@@ -122,99 +174,138 @@ public class WatermarkingDialog extends Stage {
      * Creates the attack simulation panel with improved layout
      */
     private TitledPane createAttackControls() {
-        VBox attackBox = new VBox(12);
+        VBox attackBox = new VBox(16);
         attackBox.setPadding(new Insets(10));
         attackBox.setFillWidth(true);
 
-        // JPEG Attack controls (vertical layout)
-        VBox jpegBox = new VBox(5);
-        jpegBox.setAlignment(Pos.CENTER_LEFT);
+        // ComboBox for selecting attack type
+        ComboBox<AttackType> attackTypeCombo = new ComboBox<>();
+        attackTypeCombo.getItems().addAll(AttackType.values());
+        attackTypeCombo.getSelectionModel().select(AttackType.JPEG_COMPRESSION);
+        attackTypeCombo.setMaxWidth(Double.MAX_VALUE);
 
-        HBox jpegLabelBox = new HBox(10);
-        jpegLabelBox.setAlignment(Pos.CENTER_LEFT);
-        Label jpegLabel = new Label("JPEG Quality:");
-        Spinner<Integer> jpegSpinner = new Spinner<>(1, 100, 75);
-        jpegSpinner.setEditable(true);
-        jpegSpinner.setPrefWidth(80);
-        jpegSpinner.setMaxWidth(80);
-        jpegLabelBox.getChildren().addAll(jpegLabel, jpegSpinner);
+        // Attack description label
+        Label descriptionLabel = new Label(AttackType.JPEG_COMPRESSION.getDescription());
+        descriptionLabel.setWrapText(true);
+        descriptionLabel.setStyle("-fx-font-style: italic;");
 
-        Button jpegButton = new Button("Apply JPEG Compression");
-        jpegButton.setMaxWidth(Double.MAX_VALUE);
-        jpegButton.setPrefHeight(30);
-        jpegButton.setOnAction(e -> applyAttack("jpeg", jpegSpinner.getValue()));
+        // Update description when attack type changes
+        attackTypeCombo.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null) {
+                descriptionLabel.setText(newVal.getDescription());
+            }
+        });
 
-        jpegBox.getChildren().addAll(jpegLabelBox, jpegButton);
+        // Parameter controls
+        VBox parameterBox = new VBox(10);
+        parameterBox.setPadding(new Insets(10, 0, 10, 0));
 
-        // Resize Attack controls
-        VBox resizeBox = new VBox(5);
-        resizeBox.setAlignment(Pos.CENTER_LEFT);
+        // JPEG quality parameter
+        Label jpegQualityLabel = new Label("JPEG Quality (1-100):");
+        Spinner<Integer> jpegQualitySpinner = new Spinner<>(1, 100, 75);
+        jpegQualitySpinner.setEditable(true);
+        jpegQualitySpinner.setPrefWidth(120);
+        HBox jpegQualityBox = new HBox(10, jpegQualityLabel, jpegQualitySpinner);
+        jpegQualityBox.setAlignment(Pos.CENTER_LEFT);
 
-        HBox resizeLabelBox = new HBox(10);
-        resizeLabelBox.setAlignment(Pos.CENTER_LEFT);
-        Label resizeLabel = new Label("Resize Scale:");
-        Spinner<Double> resizeSpinner = new Spinner<>(0.1, 1.0, 0.5, 0.1);
-        resizeSpinner.setEditable(true);
-        resizeSpinner.setPrefWidth(80);
-        resizeSpinner.setMaxWidth(80);
-        resizeLabelBox.getChildren().addAll(resizeLabel, resizeSpinner);
+        // PNG compression level
+        Label pngLevelLabel = new Label("PNG Compression (1-9):");
+        Spinner<Integer> pngLevelSpinner = new Spinner<>(1, 9, 5);
+        pngLevelSpinner.setEditable(true);
+        pngLevelSpinner.setPrefWidth(120);
+        HBox pngLevelBox = new HBox(10, pngLevelLabel, pngLevelSpinner);
+        pngLevelBox.setAlignment(Pos.CENTER_LEFT);
 
-        Button resizeButton = new Button("Apply Resize");
-        resizeButton.setMaxWidth(Double.MAX_VALUE);
-        resizeButton.setPrefHeight(30);
-        resizeButton.setOnAction(e -> applyAttack("resize", resizeSpinner.getValue()));
+        // Crop percentage
+        Label cropPercentLabel = new Label("Crop Percentage (0.0-0.5):");
+        Spinner<Double> cropPercentSpinner = new Spinner<>(0.0, 0.5, 0.2, 0.05);
+        cropPercentSpinner.setEditable(true);
+        cropPercentSpinner.setPrefWidth(120);
+        HBox cropPercentBox = new HBox(10, cropPercentLabel, cropPercentSpinner);
+        cropPercentBox.setAlignment(Pos.CENTER_LEFT);
 
-        resizeBox.getChildren().addAll(resizeLabelBox, resizeButton);
+        // Add parameter controls to parameter box
+        parameterBox.getChildren().addAll(jpegQualityBox, pngLevelBox, cropPercentBox);
 
-        // Rotation Attack controls
-        VBox rotationBox = new VBox(5);
-        rotationBox.setAlignment(Pos.CENTER_LEFT);
+        // Apply attack button
+        Button applyAttackButton = new Button("Apply Attack");
+        applyAttackButton.setMaxWidth(Double.MAX_VALUE);
+        applyAttackButton.setPrefHeight(40);
+        applyAttackButton.setStyle("-fx-font-weight: bold;");
 
-        HBox rotationLabelBox = new HBox(10);
-        rotationLabelBox.setAlignment(Pos.CENTER_LEFT);
-        Label rotationLabel = new Label("Rotation Angle:");
-        Spinner<Integer> rotationSpinner = new Spinner<>(0, 360, 45);
-        rotationSpinner.setEditable(true);
-        rotationSpinner.setPrefWidth(80);
-        rotationSpinner.setMaxWidth(80);
-        rotationLabelBox.getChildren().addAll(rotationLabel, rotationSpinner);
+        // Apply attack action
+        applyAttackButton.setOnAction(e -> {
+            if (watermarkedProcess == null) {
+                showAlert(Alert.AlertType.WARNING, "No Image", "Please embed a watermark first.");
+                return;
+            }
 
-        Button rotationButton = new Button("Apply Rotation");
-        rotationButton.setMaxWidth(Double.MAX_VALUE);
-        rotationButton.setPrefHeight(30);
-        rotationButton.setOnAction(e -> applyAttack("rotation", rotationSpinner.getValue()));
+            // Get current RGB image
+            BufferedImage currentImage = watermarkedProcess.getRGBImage();
+            BufferedImage attackedImage = null;
 
-        rotationBox.getChildren().addAll(rotationLabelBox, rotationButton);
+            AttackType selectedAttack = attackTypeCombo.getValue();
+            switch (selectedAttack) {
+                case JPEG_COMPRESSION:
+                    attackedImage = WatermarkAttacks.jpegCompressionAttack(currentImage, jpegQualitySpinner.getValue());
+                    break;
 
-        // Crop Attack controls
-        VBox cropBox = new VBox(5);
-        cropBox.setAlignment(Pos.CENTER_LEFT);
+                case JPEG_COMPRESSION_INTERNAL:
+                    attackedImage = WatermarkAttacks.jpegCompressionAttackInternal(currentImage, jpegQualitySpinner.getValue());
+                    break;
 
-        HBox cropLabelBox = new HBox(10);
-        cropLabelBox.setAlignment(Pos.CENTER_LEFT);
-        Label cropLabel = new Label("Crop Percentage:");
-        Spinner<Double> cropSpinner = new Spinner<>(0.0, 0.5, 0.1, 0.05);
-        cropSpinner.setEditable(true);
-        cropSpinner.setPrefWidth(80);
-        cropSpinner.setMaxWidth(80);
-        cropLabelBox.getChildren().addAll(cropLabel, cropSpinner);
+                case PNG_COMPRESSION:
+                    attackedImage = WatermarkAttacks.pngCompressionAttack(currentImage, pngLevelSpinner.getValue());
+                    break;
 
-        Button cropButton = new Button("Apply Crop");
-        cropButton.setMaxWidth(Double.MAX_VALUE);
-        cropButton.setPrefHeight(30);
-        cropButton.setOnAction(e -> applyAttack("crop", cropSpinner.getValue()));
+                case ROTATION_45:
+                    attackedImage = WatermarkAttacks.rotationAttack(currentImage, 45);
+                    break;
 
-        cropBox.getChildren().addAll(cropLabelBox, cropButton);
+                case ROTATION_90:
+                    attackedImage = WatermarkAttacks.rotationAttack(currentImage, 90);
+                    break;
 
-        // Add all controls to the main box with separators
+                case RESIZE_75:
+                    attackedImage = WatermarkAttacks.resizeAttack(currentImage, 0.75);
+                    break;
+
+                case RESIZE_50:
+                    attackedImage = WatermarkAttacks.resizeAttack(currentImage, 0.50);
+                    break;
+
+                case MIRRORING:
+                    attackedImage = WatermarkAttacks.mirroringAttack(currentImage);
+                    break;
+
+                case CROPPING:
+                    attackedImage = WatermarkAttacks.croppingAttack(currentImage, cropPercentSpinner.getValue());
+                    break;
+            }
+
+            if (attackedImage != null) {
+                // Create a new process with the attacked image
+                watermarkedProcess = new Process(attackedImage);
+
+                // Update the image view
+                updateImageViews();
+
+                // Show success message
+                showAlert(Alert.AlertType.INFORMATION, "Attack Applied",
+                        "The " + selectedAttack + " attack was applied successfully.\n" +
+                                "You can now extract the watermark to evaluate the result.");
+            }
+        });
+
+        // Add everything to attack box
         attackBox.getChildren().addAll(
-                jpegBox,
+                new Label("Select Attack Type:"),
+                attackTypeCombo,
+                descriptionLabel,
                 new Separator(),
-                resizeBox,
-                new Separator(),
-                rotationBox,
-                new Separator(),
-                cropBox
+                new Label("Attack Parameters:"),
+                parameterBox,
+                applyAttackButton
         );
 
         TitledPane attackPane = new TitledPane("Attack Simulation", attackBox);
@@ -227,7 +318,7 @@ public class WatermarkingDialog extends Stage {
         // Create left control panel
         VBox controlPanel = new VBox(10);
         controlPanel.setPadding(new Insets(10));
-        controlPanel.setPrefWidth(350); // Increased from original 300px
+        controlPanel.setPrefWidth(350);
 
         // Method selection
         Label methodLabel = new Label("Watermarking Method:");
@@ -275,15 +366,20 @@ public class WatermarkingDialog extends Stage {
         // Action buttons
         Button embedButton = new Button("Embed Watermark");
         embedButton.setMaxWidth(Double.MAX_VALUE);
+        embedButton.setStyle("-fx-font-weight: bold;");
         embedButton.setOnAction(e -> embedWatermark());
 
         Button extractButton = new Button("Extract Watermark");
         extractButton.setMaxWidth(Double.MAX_VALUE);
+        extractButton.setStyle("-fx-font-weight: bold;");
         extractButton.setOnAction(e -> extractWatermark());
 
         Button evaluateButton = new Button("Evaluate Quality");
         evaluateButton.setMaxWidth(Double.MAX_VALUE);
         evaluateButton.setOnAction(e -> evaluateWatermark());
+
+        // Results table for tracking multiple evaluations
+        resultsTable = createResultsTable();
 
         // Attack simulation
         TitledPane attackPane = createAttackControls();
@@ -307,10 +403,12 @@ public class WatermarkingDialog extends Stage {
                 new Separator(),
                 embedButton,
                 extractButton,
-                evaluateButton,
-                new Separator(),
-                attackPane
+                evaluateButton
         );
+
+        // Add attack pane at the end
+        controlPanel.getChildren().add(new Separator());
+        controlPanel.getChildren().add(attackPane);
 
         // Create results panel on the right
         BorderPane resultsPanel = createResultsPanel();
@@ -352,98 +450,43 @@ public class WatermarkingDialog extends Stage {
         return options;
     }
 
-    /**
-     * Creates improved DCT options panel with better layout
-     */
     private VBox createDCTOptions() {
-        VBox options = new VBox(15);
-        options.setPadding(new Insets(10, 0, 10, 0));
+        VBox options = new VBox(10);
+        options.setPadding(new Insets(5, 0, 5, 0));
 
-        // Block size - using a grid for better alignment
-        GridPane blockSizeGrid = new GridPane();
-        blockSizeGrid.setHgap(10);
-        blockSizeGrid.setVgap(5);
-        blockSizeGrid.setAlignment(Pos.CENTER_LEFT);
-
+        // Block size
         Label blockSizeLabel = new Label("Block Size:");
         blockSizeSpinner = new Spinner<>(4, 16, 8, 4);
         blockSizeSpinner.setEditable(true);
         blockSizeSpinner.setPrefWidth(80);
-        blockSizeSpinner.setMaxWidth(80);
+        HBox blockSizeBox = new HBox(10, blockSizeLabel, blockSizeSpinner);
 
-        blockSizeGrid.add(blockSizeLabel, 0, 0);
-        blockSizeGrid.add(blockSizeSpinner, 1, 0);
+        // Coefficient pairs
+        Label coefPairsLabel = new Label("Coefficient Pairs:");
 
-        // Coefficient pairs section with heading
-        Label coefPairsHeading = new Label("Coefficient Pairs:");
-        coefPairsHeading.setStyle("-fx-font-weight: bold;");
-
-        // First coefficient using a proper grid
-        GridPane coef1Grid = new GridPane();
-        coef1Grid.setHgap(10);
-        coef1Grid.setVgap(5);
-        coef1Grid.setPadding(new Insets(0, 0, 0, 15)); // Indent from the heading
-
-        Label coef1Label = new Label("Coefficient 1:");
+        Label coef1Label = new Label("Coef 1 (x,y):");
         coef1XSpinner = new Spinner<>(0, 7, 3);
-        coef1XSpinner.setPrefWidth(60);
         coef1YSpinner = new Spinner<>(0, 7, 1);
-        coef1YSpinner.setPrefWidth(60);
+        HBox coef1Box = new HBox(5, coef1Label, coef1XSpinner, coef1YSpinner);
 
-        Label coef1XLabel = new Label("X:");
-        Label coef1YLabel = new Label("Y:");
-
-        coef1Grid.add(coef1Label, 0, 0);
-        coef1Grid.add(coef1XLabel, 1, 0);
-        coef1Grid.add(coef1XSpinner, 2, 0);
-        coef1Grid.add(coef1YLabel, 3, 0);
-        coef1Grid.add(coef1YSpinner, 4, 0);
-
-        // Second coefficient using a proper grid
-        GridPane coef2Grid = new GridPane();
-        coef2Grid.setHgap(10);
-        coef2Grid.setVgap(5);
-        coef2Grid.setPadding(new Insets(0, 0, 0, 15)); // Indent from the heading
-
-        Label coef2Label = new Label("Coefficient 2:");
+        Label coef2Label = new Label("Coef 2 (x,y):");
         coef2XSpinner = new Spinner<>(0, 7, 4);
-        coef2XSpinner.setPrefWidth(60);
         coef2YSpinner = new Spinner<>(0, 7, 1);
-        coef2YSpinner.setPrefWidth(60);
+        HBox coef2Box = new HBox(5, coef2Label, coef2XSpinner, coef2YSpinner);
 
-        Label coef2XLabel = new Label("X:");
-        Label coef2YLabel = new Label("Y:");
-
-        coef2Grid.add(coef2Label, 0, 0);
-        coef2Grid.add(coef2XLabel, 1, 0);
-        coef2Grid.add(coef2XSpinner, 2, 0);
-        coef2Grid.add(coef2YLabel, 3, 0);
-        coef2Grid.add(coef2YSpinner, 4, 0);
-
-        // Strength - using a grid for better alignment
-        GridPane strengthGrid = new GridPane();
-        strengthGrid.setHgap(10);
-        strengthGrid.setVgap(5);
-        strengthGrid.setAlignment(Pos.CENTER_LEFT);
-
+        // Strength
         Label strengthLabel = new Label("Embedding Strength:");
         strengthSpinner = new Spinner<>(1.0, 50.0, 10.0, 1.0);
         strengthSpinner.setEditable(true);
-        strengthSpinner.setPrefWidth(100);
-        strengthSpinner.setMaxWidth(120);
+        HBox strengthBox = new HBox(10, strengthLabel, strengthSpinner);
 
-        strengthGrid.add(strengthLabel, 0, 0);
-        strengthGrid.add(strengthSpinner, 1, 0);
-
-        // Add everything to options with proper spacing and separators
+        // Add to options
         options.getChildren().addAll(
-                blockSizeGrid,
-                new Separator(),
-                coefPairsHeading,
-                coef1Grid,
-                coef2Grid,
-                new Separator(),
-                strengthGrid
+                blockSizeBox,
+                coefPairsLabel,
+                coef1Box,
+                coef2Box,
+                strengthBox
         );
 
         return options;
@@ -461,29 +504,29 @@ public class WatermarkingDialog extends Stage {
         // Original image view
         Label originalLabel = new Label("Original Image:");
         originalImageView = new ImageView();
-        originalImageView.setFitWidth(220);
-        originalImageView.setFitHeight(220);
+        originalImageView.setFitWidth(250);
+        originalImageView.setFitHeight(250);
         originalImageView.setPreserveRatio(true);
 
         // Watermark image view
         Label watermarkLabel = new Label("Watermark:");
         watermarkImageView = new ImageView();
-        watermarkImageView.setFitWidth(220);
-        watermarkImageView.setFitHeight(220);
+        watermarkImageView.setFitWidth(250);
+        watermarkImageView.setFitHeight(250);
         watermarkImageView.setPreserveRatio(true);
 
         // Watermarked image view
         Label watermarkedLabel = new Label("Watermarked Image:");
         watermarkedImageView = new ImageView();
-        watermarkedImageView.setFitWidth(220);
-        watermarkedImageView.setFitHeight(220);
+        watermarkedImageView.setFitWidth(250);
+        watermarkedImageView.setFitHeight(250);
         watermarkedImageView.setPreserveRatio(true);
 
         // Extracted watermark view
         Label extractedLabel = new Label("Extracted Watermark:");
         extractedWatermarkView = new ImageView();
-        extractedWatermarkView.setFitWidth(220);
-        extractedWatermarkView.setFitHeight(220);
+        extractedWatermarkView.setFitWidth(250);
+        extractedWatermarkView.setFitHeight(250);
         extractedWatermarkView.setPreserveRatio(true);
 
         // Create VBoxes for better layout
@@ -552,10 +595,18 @@ public class WatermarkingDialog extends Stage {
         evaluationPane.setContent(evaluationGrid);
         evaluationPane.setCollapsible(false);
 
+        // Results table
+        VBox tableContainer = new VBox(5);
+        Label tableLabel = new Label("Test Results:");
+        tableLabel.setStyle("-fx-font-weight: bold;");
+        tableContainer.getChildren().addAll(tableLabel, resultsTable);
+        tableContainer.setPadding(new Insets(10, 0, 0, 0));
+
         // Add to results box
         resultsBox.getChildren().addAll(
                 dimensionsPane,
-                evaluationPane
+                evaluationPane,
+                tableContainer
         );
 
         // Add to panel
@@ -563,6 +614,44 @@ public class WatermarkingDialog extends Stage {
         panel.setBottom(resultsBox);
 
         return panel;
+    }
+
+    /**
+     * Creates the results table for tracking attack performance
+     */
+    private TableView<WatermarkResult> createResultsTable() {
+        TableView<WatermarkResult> table = new TableView<>();
+
+        // Create columns
+        TableColumn<WatermarkResult, String> attackCol = new TableColumn<>("Attack");
+        attackCol.setCellValueFactory(cellData ->
+                new SimpleStringProperty(cellData.getValue().getAttackName()));
+
+        TableColumn<WatermarkResult, String> methodCol = new TableColumn<>("Method");
+        methodCol.setCellValueFactory(cellData ->
+                new SimpleStringProperty(cellData.getValue().getMethod()));
+
+        TableColumn<WatermarkResult, String> berCol = new TableColumn<>("BER");
+        berCol.setCellValueFactory(cellData ->
+                new SimpleStringProperty(String.format("%.4f", cellData.getValue().getBer())));
+
+        TableColumn<WatermarkResult, String> ncCol = new TableColumn<>("NC");
+        ncCol.setCellValueFactory(cellData ->
+                new SimpleStringProperty(String.format("%.4f", cellData.getValue().getNc())));
+
+        // Add columns to table
+        table.getColumns().addAll(attackCol, methodCol, berCol, ncCol);
+
+        // Adjust column widths
+        attackCol.prefWidthProperty().bind(table.widthProperty().multiply(0.35));
+        methodCol.prefWidthProperty().bind(table.widthProperty().multiply(0.25));
+        berCol.prefWidthProperty().bind(table.widthProperty().multiply(0.2));
+        ncCol.prefWidthProperty().bind(table.widthProperty().multiply(0.2));
+
+        // Set height
+        table.setPrefHeight(200);
+
+        return table;
     }
 
     private void loadWatermark() {
@@ -594,8 +683,7 @@ public class WatermarkingDialog extends Stage {
                 Logger.info("Watermark image loaded: " + file.getAbsolutePath());
             } catch (IOException e) {
                 Logger.error("Error loading watermark: " + e.getMessage());
-                Alert alert = new Alert(Alert.AlertType.ERROR, "Error loading watermark image: " + e.getMessage());
-                alert.show();
+                showAlert(Alert.AlertType.ERROR, "Error", "Error loading watermark image: " + e.getMessage());
             }
         }
     }
@@ -622,8 +710,7 @@ public class WatermarkingDialog extends Stage {
                 Logger.info("Custom watermark created with size " + size + "x" + size);
             } catch (NumberFormatException e) {
                 Logger.error("Invalid watermark size: " + e.getMessage());
-                Alert alert = new Alert(Alert.AlertType.ERROR, "Invalid size. Please enter a positive integer.");
-                alert.show();
+                showAlert(Alert.AlertType.ERROR, "Error", "Invalid size. Please enter a positive integer.");
             }
         });
     }
@@ -669,18 +756,25 @@ public class WatermarkingDialog extends Stage {
     private void embedWatermark() {
         if (watermarkImage == null) {
             Logger.error("No watermark image available");
-            Alert alert = new Alert(Alert.AlertType.ERROR, "Please load or create a watermark image first.");
-            alert.show();
+            showAlert(Alert.AlertType.ERROR, "Error", "Please load or create a watermark image first.");
             return;
         }
 
         // Check if YCbCr conversion is performed
         if (!originalProcess.isYCbCrConverted()) {
             Logger.error("YCbCr conversion required");
-            Alert alert = new Alert(Alert.AlertType.ERROR,
-                    "Please convert the image to YCbCr before embedding a watermark.");
-            alert.show();
-            return;
+
+            Alert confirmDialog = new Alert(Alert.AlertType.CONFIRMATION);
+            confirmDialog.setTitle("YCbCr Conversion Required");
+            confirmDialog.setHeaderText("Image is not in YCbCr format");
+            confirmDialog.setContentText("Watermarking requires YCbCr format. Convert now?");
+
+            if (confirmDialog.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK) {
+                originalProcess.convertToYCbCr();
+                Logger.info("Image converted to YCbCr for watermarking");
+            } else {
+                return;
+            }
         }
 
         try {
@@ -753,19 +847,25 @@ public class WatermarkingDialog extends Stage {
             // Update the image view
             updateImageViews();
 
+            // Reset extraction results
+            extractedWatermark = null;
+            extractedWatermarkView.setImage(null);
+            berLabel.setText("N/A");
+            ncLabel.setText("N/A");
+
             Logger.info("Watermark embedded successfully using " + method + " method");
+            showAlert(Alert.AlertType.INFORMATION, "Success", "Watermark embedded successfully");
+
         } catch (Exception e) {
             Logger.error("Error embedding watermark: " + e.getMessage());
-            Alert alert = new Alert(Alert.AlertType.ERROR, "Error embedding watermark: " + e.getMessage());
-            alert.show();
+            showAlert(Alert.AlertType.ERROR, "Error", "Error embedding watermark: " + e.getMessage());
         }
     }
 
     private void extractWatermark() {
         if (watermarkedProcess == null) {
             Logger.error("No watermarked image available");
-            Alert alert = new Alert(Alert.AlertType.ERROR, "Please embed a watermark first.");
-            alert.show();
+            showAlert(Alert.AlertType.ERROR, "Error", "Please embed a watermark first.");
             return;
         }
 
@@ -829,19 +929,19 @@ public class WatermarkingDialog extends Stage {
             }
 
             Logger.info("Watermark extracted successfully using " + method + " method");
+            showAlert(Alert.AlertType.INFORMATION, "Success", "Watermark extracted successfully");
+
         } catch (Exception e) {
             Logger.error("Error extracting watermark: " + e.getMessage());
-            Alert alert = new Alert(Alert.AlertType.ERROR, "Error extracting watermark: " + e.getMessage());
-            alert.show();
+            showAlert(Alert.AlertType.ERROR, "Error", "Error extracting watermark: " + e.getMessage());
         }
     }
 
     private void evaluateWatermark() {
         if (embeddedWatermark == null || extractedWatermark == null) {
             Logger.error("Cannot evaluate: original or extracted watermark missing");
-            Alert alert = new Alert(Alert.AlertType.ERROR,
+            showAlert(Alert.AlertType.ERROR, "Error",
                     "Both embedded and extracted watermarks must be available for evaluation.");
-            alert.show();
             return;
         }
 
@@ -854,70 +954,29 @@ public class WatermarkingDialog extends Stage {
             double nc = WatermarkEvaluation.calculateNC(embeddedWatermark, extractedWatermark);
             ncLabel.setText(String.format("%.4f", nc));
 
+            // Add to results table
+            String attackName = "None";
+            WatermarkMethod method = methodComboBox.getValue();
+
+            // Create a new result and add to table
+            WatermarkResult result = new WatermarkResult(
+                    attackName,
+                    method.toString(),
+                    componentComboBox.getValue().toString(),
+                    (method == WatermarkMethod.LSB) ? String.valueOf(bitPlaneSpinner.getValue()) :
+                            String.valueOf(blockSizeSpinner.getValue()),
+                    ber,
+                    nc
+            );
+
+            results.add(result);
+            resultsTable.getItems().add(result);
+            resultsTable.refresh();
+
             Logger.info("Watermark evaluation completed: BER=" + ber + ", NC=" + nc);
         } catch (Exception e) {
             Logger.error("Error evaluating watermark: " + e.getMessage());
-            Alert alert = new Alert(Alert.AlertType.ERROR, "Error evaluating watermark: " + e.getMessage());
-            alert.show();
-        }
-    }
-
-    private void applyAttack(String attackType, Object parameter) {
-        if (watermarkedProcess == null) {
-            Logger.error("No watermarked image available for attack");
-            Alert alert = new Alert(Alert.AlertType.ERROR, "Please embed a watermark first.");
-            alert.show();
-            return;
-        }
-
-        try {
-            // Get the current RGB image
-            BufferedImage currentImage = watermarkedProcess.getRGBImage();
-            BufferedImage attackedImage = null;
-
-            switch (attackType) {
-                case "jpeg":
-                    int quality = (Integer) parameter;
-                    attackedImage = WatermarkAttacks.jpegCompressionAttack(currentImage, quality);
-                    Logger.info("Applied JPEG compression attack with quality: " + quality);
-                    break;
-
-                case "resize":
-                    double scale = (Double) parameter;
-                    attackedImage = WatermarkAttacks.resizeAttack(currentImage, scale);
-                    Logger.info("Applied resize attack with scale: " + scale);
-                    break;
-
-                case "rotation":
-                    int angle = (Integer) parameter;
-                    attackedImage = WatermarkAttacks.rotationAttack(currentImage, angle);
-                    Logger.info("Applied rotation attack with angle: " + angle);
-                    break;
-
-                case "crop":
-                    double cropPercent = (Double) parameter;
-                    attackedImage = WatermarkAttacks.croppingAttack(currentImage, cropPercent);
-                    Logger.info("Applied cropping attack with percentage: " + cropPercent);
-                    break;
-            }
-
-            if (attackedImage != null) {
-                // Create a new process with the attacked image
-                watermarkedProcess = new Process(attackedImage);
-
-                // Update the image view
-                updateImageViews();
-
-                // Clear the extraction results
-                extractedWatermark = null;
-                extractedWatermarkView.setImage(null);
-                berLabel.setText("N/A");
-                ncLabel.setText("N/A");
-            }
-        } catch (Exception e) {
-            Logger.error("Error applying attack: " + e.getMessage());
-            Alert alert = new Alert(Alert.AlertType.ERROR, "Error applying attack: " + e.getMessage());
-            alert.show();
+            showAlert(Alert.AlertType.ERROR, "Error", "Error evaluating watermark: " + e.getMessage());
         }
     }
 
@@ -955,5 +1014,13 @@ public class WatermarkingDialog extends Stage {
             Logger.error("Error converting BufferedImage to JavaFX Image: " + e.getMessage());
             return null;
         }
+    }
+
+    private void showAlert(Alert.AlertType type, String title, String message) {
+        Alert alert = new Alert(type);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
     }
 }

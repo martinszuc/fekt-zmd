@@ -892,6 +892,9 @@ public class MainWindowController implements Initializable {
         }
     }
 
+    /**
+     * Opens an enhanced watermarking dialog with automatic YCbCr conversion.
+     */
     @FXML
     public void openWatermarkingDialog() {
         Logger.info("Opening watermarking dialog");

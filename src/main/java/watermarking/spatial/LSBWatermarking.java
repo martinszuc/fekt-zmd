@@ -8,12 +8,22 @@ import java.awt.image.BufferedImage;
 import java.util.Random;
 
 /**
- * Implementation of LSB (Least Significant Bit) watermarking in the spatial domain.
+ * Implementation of LSB (Least Significant Bit) watermarking in spatial domain.
+ *
+ * This class implements the LSB watermarking technique as described in the project
+ * documentation. The technique embeds a watermark into a specific bit plane of
+ * an image matrix and can optionally permute the watermark for improved robustness.
  */
 public class LSBWatermarking {
 
     /**
      * Embeds a watermark into an image using LSB technique.
+     *
+     * This method implements the following steps:
+     * 1. Convert watermark to binary format
+     * 2. Optionally permute watermark bits using the provided key
+     * 3. Clear the specified bit plane in the host image
+     * 4. Set the bits according to the watermark in the specified bit plane
      *
      * @param imageMatrix The matrix containing image data (Y, Cb, or Cr)
      * @param watermark The watermark image (should be binary)
@@ -30,11 +40,12 @@ public class LSBWatermarking {
             return null;
         }
 
-        // Convert watermark to binary if not already
+        // Step 1: Convert watermark to binary if not already
         boolean[][] binaryWatermark = convertToBinary(watermark);
 
-        // Permute watermark if requested
+        // Step 2: Permute watermark if requested
         if (permute && key != null) {
+            Logger.info("Permuting watermark with key: " + key);
             binaryWatermark = permuteBits(binaryWatermark, key, false);
         }
 
@@ -52,6 +63,7 @@ public class LSBWatermarking {
             return null;
         }
 
+        // Step 3 & 4: Clear the bit plane and set watermark bits
         // Clone the original matrix to avoid modifying it
         Matrix watermarkedMatrix = imageMatrix.copy();
         double[][] watermarkedData = watermarkedMatrix.getArray();
@@ -86,6 +98,11 @@ public class LSBWatermarking {
     /**
      * Extracts a watermark from an image using LSB technique.
      *
+     * This method implements the following steps:
+     * 1. Extract the bits from the specified bit plane
+     * 2. Optionally reverse the permutation using the provided key
+     * 3. Convert the binary data back to an image
+     *
      * @param watermarkedMatrix The watermarked matrix
      * @param bitPlane The bit plane used for embedding (0-7)
      * @param permute Whether the watermark was permuted
@@ -111,7 +128,7 @@ public class LSBWatermarking {
             return null;
         }
 
-        // Extract the binary watermark
+        // Step 1: Extract the binary watermark
         boolean[][] extractedBits = new boolean[height][width];
         double[][] watermarkedData = watermarkedMatrix.getArray();
 
@@ -124,12 +141,13 @@ public class LSBWatermarking {
             }
         }
 
-        // Reverse permutation if necessary
+        // Step 2: Reverse permutation if necessary
         if (permute && key != null) {
+            Logger.info("Reverse permuting watermark with key: " + key);
             extractedBits = permuteBits(extractedBits, key, true);
         }
 
-        // Convert binary to image
+        // Step 3: Convert binary to image
         BufferedImage extractedWatermark = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
 
         for (int y = 0; y < height; y++) {
@@ -145,6 +163,7 @@ public class LSBWatermarking {
 
     /**
      * Converts an image to binary format.
+     * Pixels with luminance > 128 are considered white (true), others are black (false).
      */
     private static boolean[][] convertToBinary(BufferedImage image) {
         int width = image.getWidth();
@@ -165,6 +184,12 @@ public class LSBWatermarking {
 
     /**
      * Permutes the bits of a watermark using a key.
+     * Uses Fisher-Yates shuffle algorithm with seeded random generator.
+     *
+     * @param watermark The binary watermark data
+     * @param key The seed key for permutation
+     * @param inverse Whether to perform inverse permutation (for extraction)
+     * @return Permuted binary data
      */
     private static boolean[][] permuteBits(boolean[][] watermark, String key, boolean inverse) {
         int height = watermark.length;
