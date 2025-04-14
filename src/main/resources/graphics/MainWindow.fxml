@@ -43,6 +43,11 @@
                                 <MenuItem disable="true" mnemonicParsing="false" text="About" />
                             </items>
                         </Menu>
+                        <Menu mnemonicParsing="false" text="Watermarking">
+                            <items>
+                                <MenuItem mnemonicParsing="false" onAction="#openWatermarkingDialog" text="Open Watermarking Tool" />
+                            </items>
+                        </Menu>
                     </menus>
                 </MenuBar>
                 <Text opacity="0.77" strokeType="OUTSIDE" strokeWidth="0.0" style="-fx-fill: #e6e6e6;" text="\@JPEG" StackPane.alignment="CENTER_RIGHT">

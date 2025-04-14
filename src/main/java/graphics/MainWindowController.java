@@ -891,4 +891,35 @@ public class MainWindowController implements Initializable {
             e.printStackTrace();
         }
     }
+
+    @FXML
+    public void openWatermarkingDialog() {
+        Logger.info("Opening watermarking dialog");
+
+        if (processOriginal == null) {
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.setTitle("Cannot Open Watermarking");
+            alert.setHeaderText(null);
+            alert.setContentText("Please load an image first before opening the watermarking tool.");
+            alert.showAndWait();
+            return;
+        }
+
+        try {
+            WatermarkingDialog dialog = new WatermarkingDialog(
+                    ((Stage) buttonSample.getScene().getWindow()),
+                    processOriginal
+            );
+            dialog.show();
+        } catch (Exception e) {
+            Logger.error("Error opening watermarking dialog: " + e.getMessage());
+            e.printStackTrace();
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle("Error");
+            alert.setHeaderText(null);
+            alert.setContentText("Failed to open watermarking dialog: " + e.getMessage());
+            alert.showAndWait();
+        }
+    }
+
 }
