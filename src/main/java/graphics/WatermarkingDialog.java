@@ -5,15 +5,13 @@ import enums.QualityType;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.GridPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.VBox;
+import javafx.scene.layout.*;
 import javafx.stage.FileChooser;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
@@ -98,8 +96,8 @@ public class WatermarkingDialog extends Stage {
         initModality(Modality.APPLICATION_MODAL);
         initOwner(parentStage);
         setTitle("Image Watermarking");
-        setMinWidth(900);
-        setMinHeight(700);
+        setMinWidth(1000);  // Increased from 900 to 1000
+        setMinHeight(750);  // Increased from 700 to 750
 
         // Create the UI
         BorderPane root = new BorderPane();
@@ -120,11 +118,116 @@ public class WatermarkingDialog extends Stage {
         updateImageViews();
     }
 
+    /**
+     * Creates the attack simulation panel with improved layout
+     */
+    private TitledPane createAttackControls() {
+        VBox attackBox = new VBox(12);
+        attackBox.setPadding(new Insets(10));
+        attackBox.setFillWidth(true);
+
+        // JPEG Attack controls (vertical layout)
+        VBox jpegBox = new VBox(5);
+        jpegBox.setAlignment(Pos.CENTER_LEFT);
+
+        HBox jpegLabelBox = new HBox(10);
+        jpegLabelBox.setAlignment(Pos.CENTER_LEFT);
+        Label jpegLabel = new Label("JPEG Quality:");
+        Spinner<Integer> jpegSpinner = new Spinner<>(1, 100, 75);
+        jpegSpinner.setEditable(true);
+        jpegSpinner.setPrefWidth(80);
+        jpegSpinner.setMaxWidth(80);
+        jpegLabelBox.getChildren().addAll(jpegLabel, jpegSpinner);
+
+        Button jpegButton = new Button("Apply JPEG Compression");
+        jpegButton.setMaxWidth(Double.MAX_VALUE);
+        jpegButton.setPrefHeight(30);
+        jpegButton.setOnAction(e -> applyAttack("jpeg", jpegSpinner.getValue()));
+
+        jpegBox.getChildren().addAll(jpegLabelBox, jpegButton);
+
+        // Resize Attack controls
+        VBox resizeBox = new VBox(5);
+        resizeBox.setAlignment(Pos.CENTER_LEFT);
+
+        HBox resizeLabelBox = new HBox(10);
+        resizeLabelBox.setAlignment(Pos.CENTER_LEFT);
+        Label resizeLabel = new Label("Resize Scale:");
+        Spinner<Double> resizeSpinner = new Spinner<>(0.1, 1.0, 0.5, 0.1);
+        resizeSpinner.setEditable(true);
+        resizeSpinner.setPrefWidth(80);
+        resizeSpinner.setMaxWidth(80);
+        resizeLabelBox.getChildren().addAll(resizeLabel, resizeSpinner);
+
+        Button resizeButton = new Button("Apply Resize");
+        resizeButton.setMaxWidth(Double.MAX_VALUE);
+        resizeButton.setPrefHeight(30);
+        resizeButton.setOnAction(e -> applyAttack("resize", resizeSpinner.getValue()));
+
+        resizeBox.getChildren().addAll(resizeLabelBox, resizeButton);
+
+        // Rotation Attack controls
+        VBox rotationBox = new VBox(5);
+        rotationBox.setAlignment(Pos.CENTER_LEFT);
+
+        HBox rotationLabelBox = new HBox(10);
+        rotationLabelBox.setAlignment(Pos.CENTER_LEFT);
+        Label rotationLabel = new Label("Rotation Angle:");
+        Spinner<Integer> rotationSpinner = new Spinner<>(0, 360, 45);
+        rotationSpinner.setEditable(true);
+        rotationSpinner.setPrefWidth(80);
+        rotationSpinner.setMaxWidth(80);
+        rotationLabelBox.getChildren().addAll(rotationLabel, rotationSpinner);
+
+        Button rotationButton = new Button("Apply Rotation");
+        rotationButton.setMaxWidth(Double.MAX_VALUE);
+        rotationButton.setPrefHeight(30);
+        rotationButton.setOnAction(e -> applyAttack("rotation", rotationSpinner.getValue()));
+
+        rotationBox.getChildren().addAll(rotationLabelBox, rotationButton);
+
+        // Crop Attack controls
+        VBox cropBox = new VBox(5);
+        cropBox.setAlignment(Pos.CENTER_LEFT);
+
+        HBox cropLabelBox = new HBox(10);
+        cropLabelBox.setAlignment(Pos.CENTER_LEFT);
+        Label cropLabel = new Label("Crop Percentage:");
+        Spinner<Double> cropSpinner = new Spinner<>(0.0, 0.5, 0.1, 0.05);
+        cropSpinner.setEditable(true);
+        cropSpinner.setPrefWidth(80);
+        cropSpinner.setMaxWidth(80);
+        cropLabelBox.getChildren().addAll(cropLabel, cropSpinner);
+
+        Button cropButton = new Button("Apply Crop");
+        cropButton.setMaxWidth(Double.MAX_VALUE);
+        cropButton.setPrefHeight(30);
+        cropButton.setOnAction(e -> applyAttack("crop", cropSpinner.getValue()));
+
+        cropBox.getChildren().addAll(cropLabelBox, cropButton);
+
+        // Add all controls to the main box with separators
+        attackBox.getChildren().addAll(
+                jpegBox,
+                new Separator(),
+                resizeBox,
+                new Separator(),
+                rotationBox,
+                new Separator(),
+                cropBox
+        );
+
+        TitledPane attackPane = new TitledPane("Attack Simulation", attackBox);
+        attackPane.setExpanded(false);
+        attackPane.setMaxHeight(Double.MAX_VALUE);
+        return attackPane;
+    }
+
     private void createControls(BorderPane root) {
         // Create left control panel
         VBox controlPanel = new VBox(10);
         controlPanel.setPadding(new Insets(10));
-        controlPanel.setPrefWidth(300);
+        controlPanel.setPrefWidth(350); // Increased from original 300px
 
         // Method selection
         Label methodLabel = new Label("Watermarking Method:");
@@ -185,6 +288,12 @@ public class WatermarkingDialog extends Stage {
         // Attack simulation
         TitledPane attackPane = createAttackControls();
 
+        // Wrap control panel in a scroll pane for better usability
+        ScrollPane scrollPane = new ScrollPane(controlPanel);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+
         // Add everything to the control panel
         controlPanel.getChildren().addAll(
                 methodLabel, methodComboBox,
@@ -207,7 +316,7 @@ public class WatermarkingDialog extends Stage {
         BorderPane resultsPanel = createResultsPanel();
 
         // Add panels to root
-        root.setLeft(controlPanel);
+        root.setLeft(scrollPane);
         root.setCenter(resultsPanel);
     }
 
@@ -285,136 +394,113 @@ public class WatermarkingDialog extends Stage {
         return options;
     }
 
-    private TitledPane createAttackControls() {
-        VBox attackBox = new VBox(10);
-        attackBox.setPadding(new Insets(10));
-
-        // JPEG Compression attack
-        Label jpegQualityLabel = new Label("JPEG Quality (1-100):");
-        Spinner<Integer> jpegQualitySpinner = new Spinner<>(1, 100, 75);
-        jpegQualitySpinner.setEditable(true);
-        jpegQualitySpinner.setPrefWidth(80);
-        Button jpegAttackButton = new Button("Apply JPEG Attack");
-        jpegAttackButton.setOnAction(e -> applyAttack("jpeg", jpegQualitySpinner.getValue()));
-        HBox jpegBox = new HBox(10, jpegQualityLabel, jpegQualitySpinner, jpegAttackButton);
-
-        // Resize attack
-        Label resizeLabel = new Label("Resize Scale (0.1-1.0):");
-        Spinner<Double> resizeSpinner = new Spinner<>(0.1, 1.0, 0.5, 0.1);
-        resizeSpinner.setEditable(true);
-        resizeSpinner.setPrefWidth(80);
-        Button resizeAttackButton = new Button("Apply Resize Attack");
-        resizeAttackButton.setOnAction(e -> applyAttack("resize", resizeSpinner.getValue()));
-        HBox resizeBox = new HBox(10, resizeLabel, resizeSpinner, resizeAttackButton);
-
-        // Rotation attack
-        Label rotationLabel = new Label("Rotation Angle (degrees):");
-        Spinner<Integer> rotationSpinner = new Spinner<>(0, 360, 45);
-        rotationSpinner.setEditable(true);
-        rotationSpinner.setPrefWidth(80);
-        Button rotationAttackButton = new Button("Apply Rotation Attack");
-        rotationAttackButton.setOnAction(e -> applyAttack("rotation", rotationSpinner.getValue()));
-        HBox rotationBox = new HBox(10, rotationLabel, rotationSpinner, rotationAttackButton);
-
-        // Crop attack
-        Label cropLabel = new Label("Crop Percentage (0.0-0.5):");
-        Spinner<Double> cropSpinner = new Spinner<>(0.0, 0.5, 0.1, 0.05);
-        cropSpinner.setEditable(true);
-        cropSpinner.setPrefWidth(80);
-        Button cropAttackButton = new Button("Apply Crop Attack");
-        cropAttackButton.setOnAction(e -> applyAttack("crop", cropSpinner.getValue()));
-        HBox cropBox = new HBox(10, cropLabel, cropSpinner, cropAttackButton);
-
-        attackBox.getChildren().addAll(jpegBox, resizeBox, rotationBox, cropBox);
-
-        TitledPane attackPane = new TitledPane("Attack Simulation", attackBox);
-        attackPane.setExpanded(false);
-
-        return attackPane;
-    }
-
     private BorderPane createResultsPanel() {
         BorderPane panel = new BorderPane();
 
         // Create grid for images
         GridPane imageGrid = new GridPane();
-        imageGrid.setHgap(10);
-        imageGrid.setVgap(10);
+        imageGrid.setHgap(15);
+        imageGrid.setVgap(15);
         imageGrid.setPadding(new Insets(10));
 
         // Original image view
         Label originalLabel = new Label("Original Image:");
         originalImageView = new ImageView();
-        originalImageView.setFitWidth(200);
-        originalImageView.setFitHeight(200);
+        originalImageView.setFitWidth(220);
+        originalImageView.setFitHeight(220);
         originalImageView.setPreserveRatio(true);
 
         // Watermark image view
         Label watermarkLabel = new Label("Watermark:");
         watermarkImageView = new ImageView();
-        watermarkImageView.setFitWidth(200);
-        watermarkImageView.setFitHeight(200);
+        watermarkImageView.setFitWidth(220);
+        watermarkImageView.setFitHeight(220);
         watermarkImageView.setPreserveRatio(true);
 
         // Watermarked image view
         Label watermarkedLabel = new Label("Watermarked Image:");
         watermarkedImageView = new ImageView();
-        watermarkedImageView.setFitWidth(200);
-        watermarkedImageView.setFitHeight(200);
+        watermarkedImageView.setFitWidth(220);
+        watermarkedImageView.setFitHeight(220);
         watermarkedImageView.setPreserveRatio(true);
 
         // Extracted watermark view
         Label extractedLabel = new Label("Extracted Watermark:");
         extractedWatermarkView = new ImageView();
-        extractedWatermarkView.setFitWidth(200);
-        extractedWatermarkView.setFitHeight(200);
+        extractedWatermarkView.setFitWidth(220);
+        extractedWatermarkView.setFitHeight(220);
         extractedWatermarkView.setPreserveRatio(true);
 
+        // Create VBoxes for better layout
+        VBox originalBox = new VBox(5, originalLabel, originalImageView);
+        VBox watermarkBox = new VBox(5, watermarkLabel, watermarkImageView);
+        VBox watermarkedBox = new VBox(5, watermarkedLabel, watermarkedImageView);
+        VBox extractedBox = new VBox(5, extractedLabel, extractedWatermarkView);
+
         // Add to grid
-        imageGrid.add(originalLabel, 0, 0);
-        imageGrid.add(originalImageView, 0, 1);
-        imageGrid.add(watermarkLabel, 1, 0);
-        imageGrid.add(watermarkImageView, 1, 1);
-        imageGrid.add(watermarkedLabel, 0, 2);
-        imageGrid.add(watermarkedImageView, 0, 3);
-        imageGrid.add(extractedLabel, 1, 2);
-        imageGrid.add(extractedWatermarkView, 1, 3);
+        imageGrid.add(originalBox, 0, 0);
+        imageGrid.add(watermarkBox, 1, 0);
+        imageGrid.add(watermarkedBox, 0, 1);
+        imageGrid.add(extractedBox, 1, 1);
 
         // Results panel
         VBox resultsBox = new VBox(10);
         resultsBox.setPadding(new Insets(10));
 
         // Watermark dimension input (for extraction)
-        Label dimensionsLabel = new Label("Watermark Dimensions for Extraction:");
-        HBox dimensionsBox = new HBox(10);
+        TitledPane dimensionsPane = new TitledPane();
+        dimensionsPane.setText("Watermark Dimensions for Extraction");
+
+        GridPane dimensionsGrid = new GridPane();
+        dimensionsGrid.setHgap(10);
+        dimensionsGrid.setVgap(5);
+        dimensionsGrid.setPadding(new Insets(10));
 
         Label widthLabel = new Label("Width:");
         watermarkWidthField = new TextField("64");
+        watermarkWidthField.setPrefWidth(100);
 
         Label heightLabel = new Label("Height:");
         watermarkHeightField = new TextField("64");
+        watermarkHeightField.setPrefWidth(100);
 
-        dimensionsBox.getChildren().addAll(widthLabel, watermarkWidthField, heightLabel, watermarkHeightField);
+        dimensionsGrid.add(widthLabel, 0, 0);
+        dimensionsGrid.add(watermarkWidthField, 1, 0);
+        dimensionsGrid.add(heightLabel, 2, 0);
+        dimensionsGrid.add(watermarkHeightField, 3, 0);
+
+        dimensionsPane.setContent(dimensionsGrid);
+        dimensionsPane.setCollapsible(false);
 
         // Evaluation results
-        Label evaluationLabel = new Label("Watermark Evaluation:");
+        TitledPane evaluationPane = new TitledPane();
+        evaluationPane.setText("Watermark Evaluation");
+
+        GridPane evaluationGrid = new GridPane();
+        evaluationGrid.setHgap(10);
+        evaluationGrid.setVgap(5);
+        evaluationGrid.setPadding(new Insets(10));
 
         Label berTitleLabel = new Label("Bit Error Rate (BER):");
         berLabel = new Label("N/A");
-        HBox berBox = new HBox(10, berTitleLabel, berLabel);
+        berLabel.setStyle("-fx-font-weight: bold;");
 
         Label ncTitleLabel = new Label("Normalized Correlation (NC):");
         ncLabel = new Label("N/A");
-        HBox ncBox = new HBox(10, ncTitleLabel, ncLabel);
+        ncLabel.setStyle("-fx-font-weight: bold;");
+
+        evaluationGrid.add(berTitleLabel, 0, 0);
+        evaluationGrid.add(berLabel, 1, 0);
+        evaluationGrid.add(ncTitleLabel, 0, 1);
+        evaluationGrid.add(ncLabel, 1, 1);
+
+        evaluationPane.setContent(evaluationGrid);
+        evaluationPane.setCollapsible(false);
 
         // Add to results box
         resultsBox.getChildren().addAll(
-                dimensionsLabel,
-                dimensionsBox,
-                new Separator(),
-                evaluationLabel,
-                berBox,
-                ncBox
+                dimensionsPane,
+                evaluationPane
         );
 
         // Add to panel

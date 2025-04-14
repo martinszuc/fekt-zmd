@@ -62,17 +62,20 @@ public class LSBWatermarking {
                 // Get pixel value
                 double pixelValue = watermarkedData[y][x];
 
+                // Convert to int for bitwise operations
+                int pixelValueInt = (int)Math.floor(pixelValue);
+
                 // Clear the bit at the specified bit plane
                 int bitMask = ~(1 << bitPlane);
-                pixelValue = Math.floor(pixelValue) & bitMask;
+                pixelValueInt = pixelValueInt & bitMask;
 
                 // Set the bit according to watermark
                 if (binaryWatermark[y][x]) {
-                    pixelValue |= (1 << bitPlane);
+                    pixelValueInt |= (1 << bitPlane);
                 }
 
-                // Update the pixel
-                watermarkedData[y][x] = pixelValue;
+                // Update the pixel value
+                watermarkedData[y][x] = pixelValueInt;
             }
         }
 
@@ -116,7 +119,8 @@ public class LSBWatermarking {
             for (int x = 0; x < width; x++) {
                 // Get the bit at the specified bit plane
                 double pixelValue = watermarkedData[y][x];
-                extractedBits[y][x] = ((int)pixelValue & (1 << bitPlane)) != 0;
+                int pixelValueInt = (int)pixelValue;
+                extractedBits[y][x] = ((pixelValueInt & (1 << bitPlane)) != 0);
             }
         }
 
