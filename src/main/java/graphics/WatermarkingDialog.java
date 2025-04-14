@@ -352,43 +352,98 @@ public class WatermarkingDialog extends Stage {
         return options;
     }
 
+    /**
+     * Creates improved DCT options panel with better layout
+     */
     private VBox createDCTOptions() {
-        VBox options = new VBox(10);
-        options.setPadding(new Insets(5, 0, 5, 0));
+        VBox options = new VBox(15);
+        options.setPadding(new Insets(10, 0, 10, 0));
 
-        // Block size
+        // Block size - using a grid for better alignment
+        GridPane blockSizeGrid = new GridPane();
+        blockSizeGrid.setHgap(10);
+        blockSizeGrid.setVgap(5);
+        blockSizeGrid.setAlignment(Pos.CENTER_LEFT);
+
         Label blockSizeLabel = new Label("Block Size:");
         blockSizeSpinner = new Spinner<>(4, 16, 8, 4);
         blockSizeSpinner.setEditable(true);
         blockSizeSpinner.setPrefWidth(80);
-        HBox blockSizeBox = new HBox(10, blockSizeLabel, blockSizeSpinner);
+        blockSizeSpinner.setMaxWidth(80);
 
-        // Coefficient pairs
-        Label coefPairsLabel = new Label("Coefficient Pairs:");
+        blockSizeGrid.add(blockSizeLabel, 0, 0);
+        blockSizeGrid.add(blockSizeSpinner, 1, 0);
 
-        Label coef1Label = new Label("Coef 1 (x,y):");
+        // Coefficient pairs section with heading
+        Label coefPairsHeading = new Label("Coefficient Pairs:");
+        coefPairsHeading.setStyle("-fx-font-weight: bold;");
+
+        // First coefficient using a proper grid
+        GridPane coef1Grid = new GridPane();
+        coef1Grid.setHgap(10);
+        coef1Grid.setVgap(5);
+        coef1Grid.setPadding(new Insets(0, 0, 0, 15)); // Indent from the heading
+
+        Label coef1Label = new Label("Coefficient 1:");
         coef1XSpinner = new Spinner<>(0, 7, 3);
+        coef1XSpinner.setPrefWidth(60);
         coef1YSpinner = new Spinner<>(0, 7, 1);
-        HBox coef1Box = new HBox(5, coef1Label, coef1XSpinner, coef1YSpinner);
+        coef1YSpinner.setPrefWidth(60);
 
-        Label coef2Label = new Label("Coef 2 (x,y):");
+        Label coef1XLabel = new Label("X:");
+        Label coef1YLabel = new Label("Y:");
+
+        coef1Grid.add(coef1Label, 0, 0);
+        coef1Grid.add(coef1XLabel, 1, 0);
+        coef1Grid.add(coef1XSpinner, 2, 0);
+        coef1Grid.add(coef1YLabel, 3, 0);
+        coef1Grid.add(coef1YSpinner, 4, 0);
+
+        // Second coefficient using a proper grid
+        GridPane coef2Grid = new GridPane();
+        coef2Grid.setHgap(10);
+        coef2Grid.setVgap(5);
+        coef2Grid.setPadding(new Insets(0, 0, 0, 15)); // Indent from the heading
+
+        Label coef2Label = new Label("Coefficient 2:");
         coef2XSpinner = new Spinner<>(0, 7, 4);
+        coef2XSpinner.setPrefWidth(60);
         coef2YSpinner = new Spinner<>(0, 7, 1);
-        HBox coef2Box = new HBox(5, coef2Label, coef2XSpinner, coef2YSpinner);
+        coef2YSpinner.setPrefWidth(60);
 
-        // Strength
+        Label coef2XLabel = new Label("X:");
+        Label coef2YLabel = new Label("Y:");
+
+        coef2Grid.add(coef2Label, 0, 0);
+        coef2Grid.add(coef2XLabel, 1, 0);
+        coef2Grid.add(coef2XSpinner, 2, 0);
+        coef2Grid.add(coef2YLabel, 3, 0);
+        coef2Grid.add(coef2YSpinner, 4, 0);
+
+        // Strength - using a grid for better alignment
+        GridPane strengthGrid = new GridPane();
+        strengthGrid.setHgap(10);
+        strengthGrid.setVgap(5);
+        strengthGrid.setAlignment(Pos.CENTER_LEFT);
+
         Label strengthLabel = new Label("Embedding Strength:");
         strengthSpinner = new Spinner<>(1.0, 50.0, 10.0, 1.0);
         strengthSpinner.setEditable(true);
-        HBox strengthBox = new HBox(10, strengthLabel, strengthSpinner);
+        strengthSpinner.setPrefWidth(100);
+        strengthSpinner.setMaxWidth(120);
 
-        // Add to options
+        strengthGrid.add(strengthLabel, 0, 0);
+        strengthGrid.add(strengthSpinner, 1, 0);
+
+        // Add everything to options with proper spacing and separators
         options.getChildren().addAll(
-                blockSizeBox,
-                coefPairsLabel,
-                coef1Box,
-                coef2Box,
-                strengthBox
+                blockSizeGrid,
+                new Separator(),
+                coefPairsHeading,
+                coef1Grid,
+                coef2Grid,
+                new Separator(),
+                strengthGrid
         );
 
         return options;
