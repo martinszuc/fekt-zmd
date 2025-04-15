@@ -4,6 +4,7 @@ import Jama.Matrix;
 import enums.WatermarkType;
 import jpeg.Process;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -16,6 +17,7 @@ import watermarking.core.WatermarkingFactory;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
+import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -105,7 +107,7 @@ public class WatermarkTestingSuite {
         g2.setColor(Color.BLACK);
         g2.fillOval(16, 16, 32, 32);
         g2.setColor(Color.WHITE);
-        g2.setFont(new Font("Arial", Font.BOLD, 10));
+        g2.setFont(new java.awt.Font("Arial", java.awt.Font.BOLD, 10));
         g2.drawString("ZMD", 24, 36);
         g2.dispose();
 
