@@ -27,6 +27,32 @@ import utils.Logger;
 public class WatermarkAttacks {
 
     /**
+     * Enum for attack types to ensure consistent naming
+     */
+    public enum AttackType {
+        NONE("No Attack"),
+        JPEG_COMPRESSION("JPEG Compression"),
+        PNG_COMPRESSION("PNG Compression"),
+        ROTATION_45("Rotation 45°"),
+        ROTATION_90("Rotation 90°"),
+        RESIZE_75("Resize 75%"),
+        RESIZE_50("Resize 50%"),
+        MIRRORING("Mirroring"),
+        CROPPING("Cropping");
+
+        private final String displayName;
+
+        AttackType(String displayName) {
+            this.displayName = displayName;
+        }
+
+        @Override
+        public String toString() {
+            return displayName;
+        }
+    }
+
+    /**
      * Applies JPEG compression attack using Java's built-in compression capabilities.
      * JPEG compression uses lossy DCT-based encoding, which can significantly
      * degrade watermarks, especially those in the spatial domain.
@@ -340,5 +366,44 @@ public class WatermarkAttacks {
 
         Logger.info("Cropping attack completed with percentage " + cropPercentage);
         return resultImage;
+    }
+
+    /**
+     * Applies a specified attack to an image.
+     * @param image The image to attack
+     * @param attackType The type of attack to apply
+     * @param params Parameters for the attack (quality, scale, etc.)
+     * @return The attacked image
+     */
+    public static BufferedImage applyAttack(BufferedImage image, AttackType attackType, Object... params) {
+        switch (attackType) {
+            case JPEG_COMPRESSION:
+                return jpegCompressionAttack(image, (float) params[0]);
+
+            case PNG_COMPRESSION:
+                return pngCompressionAttack(image, (int) params[0]);
+
+            case ROTATION_45:
+                return rotationAttack(image, 45);
+
+            case ROTATION_90:
+                return rotationAttack(image, 90);
+
+            case RESIZE_75:
+                return resizeAttack(image, 0.75);
+
+            case RESIZE_50:
+                return resizeAttack(image, 0.50);
+
+            case MIRRORING:
+                return mirroringAttack(image);
+
+            case CROPPING:
+                return croppingAttack(image, (double) params[0]);
+
+            case NONE:
+            default:
+                return image; // No attack, return original
+        }
     }
 }

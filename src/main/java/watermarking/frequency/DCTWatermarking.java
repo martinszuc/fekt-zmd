@@ -4,6 +4,7 @@ import Jama.Matrix;
 import utils.Logger;
 import jpeg.Transform;
 import enums.TransformType;
+import watermarking.core.AbstractWatermarking;
 
 import java.awt.Color;
 import java.awt.image.BufferedImage;
@@ -16,27 +17,16 @@ import java.awt.image.BufferedImage;
  * provides good robustness against various attacks while maintaining visual
  * imperceptibility of the watermark.
  */
-public class DCTWatermarking {
+public class DCTWatermarking extends AbstractWatermarking {
 
-    /**
-     * Embeds a watermark into an image using DCT coefficient modification.
-     *
-     * The algorithm works by dividing the host image into blocks, applying DCT
-     * to each block, and then encoding watermark bits by modifying selected coefficient
-     * pairs according to specific rules. The strength parameter controls the robustness
-     * of the watermark, with higher values improving robustness at the expense of
-     * visual quality.
-     *
-     * @param imageMatrix The matrix containing image data (Y, Cb, or Cr)
-     * @param watermark The watermark image (should be binary)
-     * @param blockSize The size of DCT blocks (e.g., 8)
-     * @param coefPair1 First coefficient position (e.g., {3,1})
-     * @param coefPair2 Second coefficient position (e.g., {4,1})
-     * @param strength Watermark embedding strength (h parameter)
-     * @return The watermarked matrix
-     */
-    public static Matrix embed(Matrix imageMatrix, BufferedImage watermark, int blockSize,
-                               int[] coefPair1, int[] coefPair2, double strength) {
+    @Override
+    public Matrix embed(Matrix imageMatrix, BufferedImage watermark, Object... params) {
+        // Extract parameters
+        int blockSize = (int) params[0];
+        int[] coefPair1 = (int[]) params[1];
+        int[] coefPair2 = (int[]) params[2];
+        double strength = (double) params[3];
+
         Logger.info("Embedding watermark using DCT coefficient pairs {" + coefPair1[0] + "," + coefPair1[1] + "} and {" +
                 coefPair2[0] + "," + coefPair2[1] + "} with strength " + strength);
 
@@ -143,24 +133,13 @@ public class DCTWatermarking {
         return watermarkedMatrix;
     }
 
-    /**
-     * Extracts a watermark from an image using DCT coefficient pairs.
-     *
-     * The algorithm divides the watermarked image into blocks, applies DCT
-     * to each block, and extracts watermark bits by comparing coefficient pairs.
-     * The original embedding rules determine how bits are extracted: if coef1 > coef2,
-     * the bit is 0; otherwise, the bit is 1.
-     *
-     * @param watermarkedMatrix The watermarked matrix
-     * @param blockSize The block size used for DCT
-     * @param coefPair1 First coefficient position
-     * @param coefPair2 Second coefficient position
-     * @param width The width of the watermark
-     * @param height The height of the watermark
-     * @return The extracted watermark as a BufferedImage
-     */
-    public static BufferedImage extract(Matrix watermarkedMatrix, int blockSize,
-                                        int[] coefPair1, int[] coefPair2, int width, int height) {
+    @Override
+    public BufferedImage extract(Matrix watermarkedMatrix, int width, int height, Object... params) {
+        // Extract parameters
+        int blockSize = (int) params[0];
+        int[] coefPair1 = (int[]) params[1];
+        int[] coefPair2 = (int[]) params[2];
+
         Logger.info("Extracting watermark using DCT coefficient pairs {" + coefPair1[0] + "," + coefPair1[1] + "} and {" +
                 coefPair2[0] + "," + coefPair2[1] + "}");
 
@@ -234,27 +213,8 @@ public class DCTWatermarking {
         return extractedWatermark;
     }
 
-    /**
-     * Converts an image to binary format based on luminance values.
-     * Pixels with luminance > 128 are considered white (true), others black (false).
-     *
-     * @param image Input image to convert to binary
-     * @return 2D array of boolean values representing binary image
-     */
-    private static boolean[][] convertToBinary(BufferedImage image) {
-        int width = image.getWidth();
-        int height = image.getHeight();
-        boolean[][] binary = new boolean[height][width];
-
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                Color color = new Color(image.getRGB(x, y));
-                // Calculate luminance using standard coefficients
-                int luminance = (int)(0.299 * color.getRed() + 0.587 * color.getGreen() + 0.114 * color.getBlue());
-                binary[y][x] = luminance > 128;
-            }
-        }
-
-        return binary;
+    @Override
+    public String getTechniqueName() {
+        return "DCT (Frequency Domain)";
     }
 }

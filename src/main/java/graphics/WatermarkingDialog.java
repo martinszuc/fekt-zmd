@@ -2,6 +2,7 @@ package graphics;
 
 import Jama.Matrix;
 import enums.QualityType;
+import enums.WatermarkType;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
@@ -16,15 +17,6 @@ import javafx.scene.text.TextAlignment;
 import javafx.stage.FileChooser;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
-import javafx.util.Duration;
-import javafx.util.Pair;
-import jpeg.Process;
-import utils.Logger;
-import watermarking.WatermarkEvaluation;
-import watermarking.WatermarkResult;
-import watermarking.attacks.WatermarkAttacks;
-import watermarking.frequency.DCTWatermarking;
-import watermarking.spatial.LSBWatermarking;
 
 import javax.imageio.ImageIO;
 import java.awt.Graphics2D;
@@ -36,6 +28,14 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import jpeg.Process;
+import utils.Logger;
+import watermarking.attacks.WatermarkAttacks;
+import watermarking.core.AbstractWatermarking;
+import watermarking.core.WatermarkEvaluation;
+import watermarking.core.WatermarkResult;
+import watermarking.core.WatermarkingFactory;
+
 /**
  * Enhanced dialog for watermarking operations with improved attack simulation UI.
  * This dialog provides functionality for embedding and extracting watermarks using
@@ -43,23 +43,6 @@ import java.util.List;
  * against various attacks.
  */
 public class WatermarkingDialog extends Stage {
-
-    // Enumeration for watermarking methods
-    private enum WatermarkMethod {
-        LSB("LSB (Spatial Domain)"),
-        DCT("DCT (Frequency Domain)");
-
-        private final String displayName;
-
-        WatermarkMethod(String displayName) {
-            this.displayName = displayName;
-        }
-
-        @Override
-        public String toString() {
-            return displayName;
-        }
-    }
 
     // Enumeration for attack types
     private enum AttackType {
@@ -103,7 +86,7 @@ public class WatermarkingDialog extends Stage {
     private List<WatermarkResult> results = new ArrayList<>();
 
     // UI components for watermarking
-    private ComboBox<WatermarkMethod> methodComboBox;
+    private ComboBox<WatermarkType> methodComboBox;
     private ComboBox<QualityType> componentComboBox;
     private Spinner<Integer> bitPlaneSpinner;
     private Spinner<Integer> blockSizeSpinner;
@@ -156,7 +139,7 @@ public class WatermarkingDialog extends Stage {
         initModality(Modality.APPLICATION_MODAL);
         initOwner(parentStage);
         setTitle("Image Watermarking");
-        setMinWidth(1400);
+        setMinWidth(1000);
         setMinHeight(900);
 
         // Create the UI
@@ -176,6 +159,320 @@ public class WatermarkingDialog extends Stage {
 
         // Update UI
         updateImageViews();
+    }
+
+    private void createControls(BorderPane root) {
+        // Create left control panel for watermarking methods
+        VBox watermarkControlPanel = createWatermarkControlPanel();
+        watermarkControlPanel.setPrefWidth(250);
+
+        // Create content area with images and results
+        BorderPane contentPanel = createContentPanel();
+
+        // Create attack controls panel
+        VBox attackControlPanel = createAttackControls();
+        attackControlPanel.setPrefWidth(250);
+
+        // Status label for notifications
+        statusLabel = new Label("");
+        statusLabel.setTextAlignment(TextAlignment.CENTER);
+        statusLabel.setMaxWidth(Double.MAX_VALUE);
+        statusLabel.setPadding(new Insets(5));
+        statusLabel.setMinHeight(30);
+        root.setBottom(statusLabel);
+
+        // Combine everything in horizontal layout
+        HBox mainContent = new HBox(10);
+        mainContent.getChildren().addAll(watermarkControlPanel, contentPanel, attackControlPanel);
+        HBox.setHgrow(contentPanel, Priority.ALWAYS);
+
+        root.setCenter(mainContent);
+    }
+
+    private VBox createWatermarkControlPanel() {
+        VBox watermarkControlPanel = new VBox(10);
+        watermarkControlPanel.setPadding(new Insets(10));
+        watermarkControlPanel.setPrefWidth(280);
+
+        Label WatermarkTypeTitle = new Label("Watermarking Configuration");
+        WatermarkTypeTitle.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
+        watermarkControlPanel.getChildren().add(WatermarkTypeTitle);
+
+        // Method selection
+        Label methodLabel = new Label("Watermarking Method:");
+        methodComboBox = new ComboBox<>();
+        methodComboBox.getItems().addAll(WatermarkType.values());
+        methodComboBox.setValue(WatermarkType.LSB);
+        methodComboBox.setMaxWidth(Double.MAX_VALUE);
+
+        // Component selection
+        Label componentLabel = new Label("Image Component:");
+        componentComboBox = new ComboBox<>();
+        componentComboBox.getItems().addAll(QualityType.Y, QualityType.CB, QualityType.CR);
+        componentComboBox.setValue(QualityType.Y);
+        componentComboBox.setMaxWidth(Double.MAX_VALUE);
+
+        // Create LSB options panel
+        lsbOptions = createLSBOptions();
+
+        // Create DCT options panel
+        dctOptions = createDCTOptions();
+
+        // Show/hide the appropriate options panel based on selected method
+        methodComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
+            lsbOptions.setVisible(newVal == WatermarkType.LSB);
+            lsbOptions.setManaged(newVal == WatermarkType.LSB);
+            dctOptions.setVisible(newVal == WatermarkType.DCT);
+            dctOptions.setManaged(newVal == WatermarkType.DCT);
+        });
+
+        // Initial visibility
+        lsbOptions.setVisible(true);
+        lsbOptions.setManaged(true);
+        dctOptions.setVisible(false);
+        dctOptions.setManaged(false);
+
+        // Watermark dimensions
+        HBox dimensionsBox = new HBox(10);
+        dimensionsBox.setAlignment(Pos.CENTER_LEFT);
+
+        Label dimensionsLabel = new Label("Dimensions:");
+        watermarkWidthField = new TextField("64");
+        watermarkWidthField.setPrefWidth(50);
+        Label xLabel = new Label("x");
+        watermarkHeightField = new TextField("64");
+        watermarkHeightField.setPrefWidth(50);
+
+        dimensionsBox.getChildren().addAll(dimensionsLabel, watermarkWidthField, xLabel, watermarkHeightField);
+
+        // Watermark buttons
+        Button loadWatermarkButton = new Button("Load Watermark");
+        loadWatermarkButton.setMaxWidth(Double.MAX_VALUE);
+        loadWatermarkButton.setOnAction(e -> loadWatermark());
+
+        Button createWatermarkButton = new Button("Create Watermark");
+        createWatermarkButton.setMaxWidth(Double.MAX_VALUE);
+        createWatermarkButton.setOnAction(e -> createWatermark());
+
+        // Action buttons
+        Button embedButton = new Button("Embed Watermark");
+        embedButton.setMaxWidth(Double.MAX_VALUE);
+        embedButton.setStyle("-fx-font-weight: bold;");
+        embedButton.setOnAction(e -> embedWatermark());
+
+        Button extractButton = new Button("Extract Watermark");
+        extractButton.setMaxWidth(Double.MAX_VALUE);
+        extractButton.setStyle("-fx-font-weight: bold;");
+        extractButton.setOnAction(e -> extractWatermark());
+
+        Button evaluateButton = new Button("Evaluate Quality");
+        evaluateButton.setMaxWidth(Double.MAX_VALUE);
+        evaluateButton.setOnAction(e -> evaluateWatermark());
+
+        // Add everything to the watermark control panel
+        watermarkControlPanel.getChildren().addAll(
+                methodLabel, methodComboBox,
+                componentLabel, componentComboBox,
+                new Separator(),
+                lsbOptions,
+                dctOptions,
+                new Separator(),
+                dimensionsBox,
+                loadWatermarkButton,
+                createWatermarkButton,
+                new Separator(),
+                embedButton,
+                extractButton,
+                evaluateButton
+        );
+
+        return watermarkControlPanel;
+    }
+
+    private VBox createLSBOptions() {
+        VBox options = new VBox(10);
+        options.setPadding(new Insets(5, 0, 5, 0));
+
+        // Bit plane selection
+        Label bitPlaneLabel = new Label("Bit Plane (0-7):");
+        bitPlaneSpinner = new Spinner<>(0, 7, 3);
+        bitPlaneSpinner.setEditable(true);
+        bitPlaneSpinner.setPrefWidth(80);
+
+        HBox bitPlaneBox = new HBox(10, bitPlaneLabel, bitPlaneSpinner);
+
+        // Permutation options
+        permuteCheckBox = new CheckBox("Permute Watermark");
+        permuteCheckBox.setSelected(true);
+
+        Label keyLabel = new Label("Permutation Key:");
+        keyTextField = new TextField("watermark-key");
+        keyTextField.setPromptText("Enter key for permutation");
+
+        VBox keyBox = new VBox(5, keyLabel, keyTextField);
+
+        // Add to options
+        options.getChildren().addAll(
+                bitPlaneBox,
+                permuteCheckBox,
+                keyBox
+        );
+
+        return options;
+    }
+
+    private VBox createDCTOptions() {
+        VBox options = new VBox(10);
+        options.setPadding(new Insets(5, 0, 5, 0));
+
+        // Block size
+        Label blockSizeLabel = new Label("Block Size:");
+        blockSizeSpinner = new Spinner<>(4, 16, 8, 4);
+        blockSizeSpinner.setEditable(true);
+        blockSizeSpinner.setPrefWidth(80);
+        HBox blockSizeBox = new HBox(10, blockSizeLabel, blockSizeSpinner);
+
+        // Coefficient pairs
+        Label coefPairsLabel = new Label("Coefficient Pairs:");
+
+        Label coef1Label = new Label("Coef 1 (x,y):");
+        coef1XSpinner = new Spinner<>(0, 7, 3);
+        coef1YSpinner = new Spinner<>(0, 7, 1);
+        HBox coef1Box = new HBox(5, coef1Label, coef1XSpinner, coef1YSpinner);
+
+        Label coef2Label = new Label("Coef 2 (x,y):");
+        coef2XSpinner = new Spinner<>(0, 7, 4);
+        coef2YSpinner = new Spinner<>(0, 7, 1);
+        HBox coef2Box = new HBox(5, coef2Label, coef2XSpinner, coef2YSpinner);
+
+        // Strength
+        Label strengthLabel = new Label("Embedding Strength:");
+        strengthSpinner = new Spinner<>(1.0, 50.0, 10.0, 1.0);
+        strengthSpinner.setEditable(true);
+        HBox strengthBox = new HBox(10, strengthLabel, strengthSpinner);
+
+        // Add to options
+        options.getChildren().addAll(
+                blockSizeBox,
+                coefPairsLabel,
+                coef1Box,
+                coef2Box,
+                strengthBox
+        );
+
+        return options;
+    }
+
+    private BorderPane createContentPanel() {
+        BorderPane panel = new BorderPane();
+
+        // Create grid for images
+        GridPane imageGrid = new GridPane();
+        imageGrid.setHgap(15);
+        imageGrid.setVgap(15);
+        imageGrid.setPadding(new Insets(10));
+
+        // Original image view
+        Label originalLabel = new Label("Original Image:");
+        originalLabel.setStyle("-fx-font-weight: bold;");
+        originalImageView = new ImageView();
+        originalImageView.setFitWidth(250);
+        originalImageView.setFitHeight(250);
+        originalImageView.setPreserveRatio(true);
+
+        // Watermark image view
+        Label watermarkLabel = new Label("Watermark:");
+        watermarkLabel.setStyle("-fx-font-weight: bold;");
+        watermarkImageView = new ImageView();
+        watermarkImageView.setFitWidth(250);
+        watermarkImageView.setFitHeight(250);
+        watermarkImageView.setPreserveRatio(true);
+
+        // Watermarked image view
+        Label watermarkedLabel = new Label("Watermarked Image:");
+        watermarkedLabel.setStyle("-fx-font-weight: bold;");
+        watermarkedImageView = new ImageView();
+        watermarkedImageView.setFitWidth(250);
+        watermarkedImageView.setFitHeight(250);
+        watermarkedImageView.setPreserveRatio(true);
+
+        // Extracted watermark view
+        Label extractedLabel = new Label("Extracted Watermark:");
+        extractedLabel.setStyle("-fx-font-weight: bold;");
+        extractedWatermarkView = new ImageView();
+        extractedWatermarkView.setFitWidth(250);
+        extractedWatermarkView.setFitHeight(250);
+        extractedWatermarkView.setPreserveRatio(true);
+
+        // Create VBoxes for better layout
+        VBox originalBox = new VBox(5, originalLabel, originalImageView);
+        VBox watermarkBox = new VBox(5, watermarkLabel, watermarkImageView);
+        VBox watermarkedBox = new VBox(5, watermarkedLabel, watermarkedImageView);
+        VBox extractedBox = new VBox(5, extractedLabel, extractedWatermarkView);
+
+        // Add to grid
+        imageGrid.add(originalBox, 0, 0);
+        imageGrid.add(watermarkBox, 1, 0);
+        imageGrid.add(watermarkedBox, 0, 1);
+        imageGrid.add(extractedBox, 1, 1);
+
+
+        // Create evaluation results panel
+        HBox evaluationPane = new HBox(10);
+        evaluationPane.setBorder(new Border(new BorderStroke(Color.LIGHTGRAY, BorderStrokeStyle.SOLID,
+                new CornerRadii(5), BorderWidths.DEFAULT)));
+        evaluationPane.setPadding(new Insets(10));
+
+        Label evaluationTitle = new Label("Watermark Evaluation");
+        evaluationTitle.setStyle("-fx-font-weight: bold;");
+
+        GridPane evaluationGrid = new GridPane();
+        evaluationGrid.setHgap(10);
+        evaluationGrid.setVgap(5);
+
+        Label berTitleLabel = new Label("Bit Error Rate (BER):");
+        berLabel = new Label("N/A");
+        berLabel.setStyle("-fx-font-weight: bold;");
+
+        Label ncTitleLabel = new Label("Normalized Correlation (NC):");
+        ncLabel = new Label("N/A");
+        ncLabel.setStyle("-fx-font-weight: bold;");
+
+        evaluationGrid.add(berTitleLabel, 0, 0);
+        evaluationGrid.add(berLabel, 1, 0);
+        evaluationGrid.add(ncTitleLabel, 0, 1);
+        evaluationGrid.add(ncLabel, 1, 1);
+
+        VBox evalContentBox = new VBox(5, evaluationTitle, evaluationGrid);
+        evaluationPane.getChildren().add(evalContentBox);
+        HBox.setHgrow(evalContentBox, Priority.ALWAYS);
+
+        // Results table with scrolling
+        Label tableLabel = new Label("Test Results:");
+        tableLabel.setStyle("-fx-font-weight: bold;");
+
+        resultsTable = createResultsTable();
+
+        // Create ScrollPane for the results table
+        ScrollPane scrollPane = new ScrollPane(resultsTable);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setFitToHeight(true);
+        scrollPane.setPrefHeight(200);
+        scrollPane.setMinHeight(100);
+        scrollPane.setMaxHeight(300);
+        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+
+        // Create VBox for evaluation results and table
+        VBox resultsBox = new VBox(10);
+        resultsBox.setPadding(new Insets(10));
+        resultsBox.getChildren().addAll(evaluationPane, tableLabel, scrollPane);
+
+        // Add to panel
+        panel.setCenter(imageGrid);
+        panel.setBottom(resultsBox);
+
+        return panel;
     }
 
     /**
@@ -321,334 +618,14 @@ public class WatermarkingDialog extends Stage {
         return attackBox;
     }
 
-    private void createControls(BorderPane root) {
-        // Create left control panel for watermarking methods
-        VBox watermarkControlPanel = new VBox(10);
-        watermarkControlPanel.setPadding(new Insets(10));
-        watermarkControlPanel.setPrefWidth(280);
-
-        Label watermarkMethodTitle = new Label("Watermarking Configuration");
-        watermarkMethodTitle.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
-        watermarkControlPanel.getChildren().add(watermarkMethodTitle);
-
-        // Method selection
-        Label methodLabel = new Label("Watermarking Method:");
-        methodComboBox = new ComboBox<>();
-        methodComboBox.getItems().addAll(WatermarkMethod.values());
-        methodComboBox.setValue(WatermarkMethod.LSB);
-        methodComboBox.setMaxWidth(Double.MAX_VALUE);
-
-        // Component selection
-        Label componentLabel = new Label("Image Component:");
-        componentComboBox = new ComboBox<>();
-        componentComboBox.getItems().addAll(QualityType.Y, QualityType.CB, QualityType.CR);
-        componentComboBox.setValue(QualityType.Y);
-        componentComboBox.setMaxWidth(Double.MAX_VALUE);
-
-        // Create LSB options panel
-        lsbOptions = createLSBOptions();
-
-        // Create DCT options panel
-        dctOptions = createDCTOptions();
-
-        // Show/hide the appropriate options panel based on selected method
-        methodComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
-            lsbOptions.setVisible(newVal == WatermarkMethod.LSB);
-            lsbOptions.setManaged(newVal == WatermarkMethod.LSB);
-            dctOptions.setVisible(newVal == WatermarkMethod.DCT);
-            dctOptions.setManaged(newVal == WatermarkMethod.DCT);
-        });
-
-        // Initial visibility
-        lsbOptions.setVisible(true);
-        lsbOptions.setManaged(true);
-        dctOptions.setVisible(false);
-        dctOptions.setManaged(false);
-
-        // Watermark buttons
-        Button loadWatermarkButton = new Button("Load Watermark");
-        loadWatermarkButton.setMaxWidth(Double.MAX_VALUE);
-        loadWatermarkButton.setOnAction(e -> loadWatermark());
-
-        Button createWatermarkButton = new Button("Create Watermark");
-        createWatermarkButton.setMaxWidth(Double.MAX_VALUE);
-        createWatermarkButton.setOnAction(e -> createWatermark());
-
-        // Action buttons
-        Button embedButton = new Button("Embed Watermark");
-        embedButton.setMaxWidth(Double.MAX_VALUE);
-        embedButton.setStyle("-fx-font-weight: bold;");
-        embedButton.setOnAction(e -> embedWatermark());
-
-        Button extractButton = new Button("Extract Watermark");
-        extractButton.setMaxWidth(Double.MAX_VALUE);
-        extractButton.setStyle("-fx-font-weight: bold;");
-        extractButton.setOnAction(e -> extractWatermark());
-
-        Button evaluateButton = new Button("Evaluate Quality");
-        evaluateButton.setMaxWidth(Double.MAX_VALUE);
-        evaluateButton.setOnAction(e -> evaluateWatermark());
-
-        // Add everything to the watermark control panel
-        watermarkControlPanel.getChildren().addAll(
-                methodLabel, methodComboBox,
-                componentLabel, componentComboBox,
-                new Separator(),
-                lsbOptions,
-                dctOptions,
-                new Separator(),
-                loadWatermarkButton,
-                createWatermarkButton,
-                new Separator(),
-                embedButton,
-                extractButton,
-                evaluateButton
-        );
-
-        // Create attack controls panel
-        VBox attackControlPanel = createAttackControls();
-        attackControlPanel.setPrefWidth(280);
-
-        // Create container for controls on the left side
-        VBox leftSideControls = new VBox(20);
-        leftSideControls.getChildren().addAll(watermarkControlPanel, attackControlPanel);
-
-        // Create the right panel with images and results
-        BorderPane contentPanel = createContentPanel();
-
-        // Status label for notifications
-        statusLabel = new Label("");
-        statusLabel.setTextAlignment(TextAlignment.CENTER);
-        statusLabel.setMaxWidth(Double.MAX_VALUE);
-        statusLabel.setPadding(new Insets(5));
-        statusLabel.setMinHeight(30);
-        root.setBottom(statusLabel);
-
-        // Add everything to root
-        HBox mainContent = new HBox(10, leftSideControls, contentPanel);
-        HBox.setHgrow(contentPanel, Priority.ALWAYS);
-        root.setCenter(mainContent);
-    }
-
-    private VBox createLSBOptions() {
-        VBox options = new VBox(10);
-        options.setPadding(new Insets(5, 0, 5, 0));
-
-        // Bit plane selection
-        Label bitPlaneLabel = new Label("Bit Plane (0-7):");
-        bitPlaneSpinner = new Spinner<>(0, 7, 3);
-        bitPlaneSpinner.setEditable(true);
-        bitPlaneSpinner.setPrefWidth(80);
-
-        HBox bitPlaneBox = new HBox(10, bitPlaneLabel, bitPlaneSpinner);
-
-        // Permutation options
-        permuteCheckBox = new CheckBox("Permute Watermark");
-        permuteCheckBox.setSelected(true);
-
-        Label keyLabel = new Label("Permutation Key:");
-        keyTextField = new TextField("watermark-key");
-        keyTextField.setPromptText("Enter key for permutation");
-
-        VBox keyBox = new VBox(5, keyLabel, keyTextField);
-
-        // Add to options
-        options.getChildren().addAll(
-                bitPlaneBox,
-                permuteCheckBox,
-                keyBox
-        );
-
-        return options;
-    }
-
-    private VBox createDCTOptions() {
-        VBox options = new VBox(10);
-        options.setPadding(new Insets(5, 0, 5, 0));
-
-        // Block size
-        Label blockSizeLabel = new Label("Block Size:");
-        blockSizeSpinner = new Spinner<>(4, 16, 8, 4);
-        blockSizeSpinner.setEditable(true);
-        blockSizeSpinner.setPrefWidth(80);
-        HBox blockSizeBox = new HBox(10, blockSizeLabel, blockSizeSpinner);
-
-        // Coefficient pairs
-        Label coefPairsLabel = new Label("Coefficient Pairs:");
-
-        Label coef1Label = new Label("Coef 1 (x,y):");
-        coef1XSpinner = new Spinner<>(0, 7, 3);
-        coef1YSpinner = new Spinner<>(0, 7, 1);
-        HBox coef1Box = new HBox(5, coef1Label, coef1XSpinner, coef1YSpinner);
-
-        Label coef2Label = new Label("Coef 2 (x,y):");
-        coef2XSpinner = new Spinner<>(0, 7, 4);
-        coef2YSpinner = new Spinner<>(0, 7, 1);
-        HBox coef2Box = new HBox(5, coef2Label, coef2XSpinner, coef2YSpinner);
-
-        // Strength
-        Label strengthLabel = new Label("Embedding Strength:");
-        strengthSpinner = new Spinner<>(1.0, 50.0, 10.0, 1.0);
-        strengthSpinner.setEditable(true);
-        HBox strengthBox = new HBox(10, strengthLabel, strengthSpinner);
-
-        // Add to options
-        options.getChildren().addAll(
-                blockSizeBox,
-                coefPairsLabel,
-                coef1Box,
-                coef2Box,
-                strengthBox
-        );
-
-        return options;
-    }
-
-    private BorderPane createContentPanel() {
-        BorderPane panel = new BorderPane();
-
-        // Create grid for images
-        GridPane imageGrid = new GridPane();
-        imageGrid.setHgap(15);
-        imageGrid.setVgap(15);
-        imageGrid.setPadding(new Insets(10));
-
-        // Original image view
-        Label originalLabel = new Label("Original Image:");
-        originalLabel.setStyle("-fx-font-weight: bold;");
-        originalImageView = new ImageView();
-        originalImageView.setFitWidth(250);
-        originalImageView.setFitHeight(250);
-        originalImageView.setPreserveRatio(true);
-
-        // Watermark image view
-        Label watermarkLabel = new Label("Watermark:");
-        watermarkLabel.setStyle("-fx-font-weight: bold;");
-        watermarkImageView = new ImageView();
-        watermarkImageView.setFitWidth(250);
-        watermarkImageView.setFitHeight(250);
-        watermarkImageView.setPreserveRatio(true);
-
-        // Watermarked image view
-        Label watermarkedLabel = new Label("Watermarked Image:");
-        watermarkedLabel.setStyle("-fx-font-weight: bold;");
-        watermarkedImageView = new ImageView();
-        watermarkedImageView.setFitWidth(250);
-        watermarkedImageView.setFitHeight(250);
-        watermarkedImageView.setPreserveRatio(true);
-
-        // Extracted watermark view
-        Label extractedLabel = new Label("Extracted Watermark:");
-        extractedLabel.setStyle("-fx-font-weight: bold;");
-        extractedWatermarkView = new ImageView();
-        extractedWatermarkView.setFitWidth(250);
-        extractedWatermarkView.setFitHeight(250);
-        extractedWatermarkView.setPreserveRatio(true);
-
-        // Create VBoxes for better layout
-        VBox originalBox = new VBox(5, originalLabel, originalImageView);
-        VBox watermarkBox = new VBox(5, watermarkLabel, watermarkImageView);
-        VBox watermarkedBox = new VBox(5, watermarkedLabel, watermarkedImageView);
-        VBox extractedBox = new VBox(5, extractedLabel, extractedWatermarkView);
-
-        // Add to grid
-        imageGrid.add(originalBox, 0, 0);
-        imageGrid.add(watermarkBox, 1, 0);
-        imageGrid.add(watermarkedBox, 0, 1);
-        imageGrid.add(extractedBox, 1, 1);
-
-        // Results panel
-        VBox resultsBox = new VBox(10);
-        resultsBox.setPadding(new Insets(10));
-
-        // Create a horizontal layout for dimension inputs and evaluation results
-        HBox topResultsRow = new HBox(20);
-
-        // Watermark dimension input (for extraction)
-        VBox dimensionsPane = new VBox(10);
-        dimensionsPane.setBorder(new Border(new BorderStroke(Color.LIGHTGRAY, BorderStrokeStyle.SOLID,
-                new CornerRadii(5), BorderWidths.DEFAULT)));
-        dimensionsPane.setPadding(new Insets(10));
-
-        Label dimensionsTitle = new Label("Watermark Dimensions");
-        dimensionsTitle.setStyle("-fx-font-weight: bold;");
-
-        GridPane dimensionsGrid = new GridPane();
-        dimensionsGrid.setHgap(10);
-        dimensionsGrid.setVgap(5);
-
-        Label widthLabel = new Label("Width:");
-        watermarkWidthField = new TextField("64");
-        watermarkWidthField.setPrefWidth(80);
-
-        Label heightLabel = new Label("Height:");
-        watermarkHeightField = new TextField("64");
-        watermarkHeightField.setPrefWidth(80);
-
-        dimensionsGrid.add(widthLabel, 0, 0);
-        dimensionsGrid.add(watermarkWidthField, 1, 0);
-        dimensionsGrid.add(heightLabel, 2, 0);
-        dimensionsGrid.add(watermarkHeightField, 3, 0);
-
-        dimensionsPane.getChildren().addAll(dimensionsTitle, dimensionsGrid);
-
-        // Evaluation results
-        VBox evaluationPane = new VBox(10);
-        evaluationPane.setBorder(new Border(new BorderStroke(Color.LIGHTGRAY, BorderStrokeStyle.SOLID,
-                new CornerRadii(5), BorderWidths.DEFAULT)));
-        evaluationPane.setPadding(new Insets(10));
-
-        Label evaluationTitle = new Label("Watermark Evaluation");
-        evaluationTitle.setStyle("-fx-font-weight: bold;");
-
-        GridPane evaluationGrid = new GridPane();
-        evaluationGrid.setHgap(10);
-        evaluationGrid.setVgap(5);
-
-        Label berTitleLabel = new Label("Bit Error Rate (BER):");
-        berLabel = new Label("N/A");
-        berLabel.setStyle("-fx-font-weight: bold;");
-
-        Label ncTitleLabel = new Label("Normalized Correlation (NC):");
-        ncLabel = new Label("N/A");
-        ncLabel.setStyle("-fx-font-weight: bold;");
-
-        evaluationGrid.add(berTitleLabel, 0, 0);
-        evaluationGrid.add(berLabel, 1, 0);
-        evaluationGrid.add(ncTitleLabel, 0, 1);
-        evaluationGrid.add(ncLabel, 1, 1);
-
-        evaluationPane.getChildren().addAll(evaluationTitle, evaluationGrid);
-
-        // Add both panes to the top results row
-        topResultsRow.getChildren().addAll(dimensionsPane, evaluationPane);
-        HBox.setHgrow(dimensionsPane, Priority.ALWAYS);
-        HBox.setHgrow(evaluationPane, Priority.ALWAYS);
-
-        // Results table
-        Label tableLabel = new Label("Test Results:");
-        tableLabel.setStyle("-fx-font-weight: bold;");
-        resultsTable = createResultsTable();
-
-        // Add to results box
-        resultsBox.getChildren().addAll(
-                topResultsRow,
-                tableLabel,
-                resultsTable
-        );
-
-        // Add to panel
-        panel.setCenter(imageGrid);
-        panel.setBottom(resultsBox);
-
-        return panel;
-    }
-
     /**
      * Creates the results table for tracking attack performance
      */
     private TableView<WatermarkResult> createResultsTable() {
         TableView<WatermarkResult> table = new TableView<>();
+
+        // Make table columns resize to fit content width
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
         // Create columns
         TableColumn<WatermarkResult, String> attackCol = new TableColumn<>("Attack");
@@ -667,17 +644,20 @@ public class WatermarkingDialog extends Stage {
         ncCol.setCellValueFactory(cellData ->
                 new SimpleStringProperty(String.format("%.4f", cellData.getValue().getNc())));
 
+        // Add a quality rating column
+        TableColumn<WatermarkResult, String> qualityCol = new TableColumn<>("Quality");
+        qualityCol.setCellValueFactory(cellData ->
+                new SimpleStringProperty(cellData.getValue().getQualityRating()));
+
         // Add columns to table
-        table.getColumns().addAll(attackCol, methodCol, berCol, ncCol);
+        table.getColumns().addAll(attackCol, methodCol, berCol, ncCol, qualityCol);
 
         // Adjust column widths
-        attackCol.prefWidthProperty().bind(table.widthProperty().multiply(0.35));
-        methodCol.prefWidthProperty().bind(table.widthProperty().multiply(0.25));
-        berCol.prefWidthProperty().bind(table.widthProperty().multiply(0.2));
-        ncCol.prefWidthProperty().bind(table.widthProperty().multiply(0.2));
-
-        // Set height
-        table.setPrefHeight(200);
+        attackCol.prefWidthProperty().bind(table.widthProperty().multiply(0.30));
+        methodCol.prefWidthProperty().bind(table.widthProperty().multiply(0.20));
+        berCol.prefWidthProperty().bind(table.widthProperty().multiply(0.15));
+        ncCol.prefWidthProperty().bind(table.widthProperty().multiply(0.15));
+        qualityCol.prefWidthProperty().bind(table.widthProperty().multiply(0.20));
 
         return table;
     }
@@ -835,23 +815,39 @@ public class WatermarkingDialog extends Stage {
             watermarkedProcess = new Process(originalProcess.getImage());
             watermarkedProcess.convertToYCbCr();
 
+            // Get selected watermarking method
+            WatermarkType method = methodComboBox.getValue();
+            AbstractWatermarking watermarking = WatermarkingFactory.createWatermarking(method);
+
             // Embed watermark
-            WatermarkMethod method = methodComboBox.getValue();
             Matrix watermarkedMatrix = null;
 
-            if (method == WatermarkMethod.LSB) {
+            if (method == WatermarkType.LSB) {
                 int bitPlane = bitPlaneSpinner.getValue();
                 boolean permute = permuteCheckBox.isSelected();
                 String key = keyTextField.getText();
 
-                watermarkedMatrix = LSBWatermarking.embed(componentMatrix, watermarkImage, bitPlane, permute, key);
-            } else if (method == WatermarkMethod.DCT) {
+                watermarkedMatrix = watermarking.embed(
+                        componentMatrix,
+                        watermarkImage,
+                        bitPlane,
+                        permute,
+                        key
+                );
+            } else if (method == WatermarkType.DCT) {
                 int blockSize = blockSizeSpinner.getValue();
                 int[] coef1 = new int[]{coef1XSpinner.getValue(), coef1YSpinner.getValue()};
                 int[] coef2 = new int[]{coef2XSpinner.getValue(), coef2YSpinner.getValue()};
                 double strength = strengthSpinner.getValue();
 
-                watermarkedMatrix = DCTWatermarking.embed(componentMatrix, watermarkImage, blockSize, coef1, coef2, strength);
+                watermarkedMatrix = watermarking.embed(
+                        componentMatrix,
+                        watermarkImage,
+                        blockSize,
+                        coef1,
+                        coef2,
+                        strength
+                );
             }
 
             if (watermarkedMatrix == null) {
@@ -929,21 +925,37 @@ public class WatermarkingDialog extends Stage {
                 throw new IllegalStateException("Selected component is not available");
             }
 
-            // Extract watermark
-            WatermarkMethod method = methodComboBox.getValue();
+            // Get selected watermarking method
+            WatermarkType method = methodComboBox.getValue();
+            AbstractWatermarking watermarking = WatermarkingFactory.createWatermarking(method);
 
-            if (method == WatermarkMethod.LSB) {
+            // Extract watermark
+            if (method == WatermarkType.LSB) {
                 int bitPlane = bitPlaneSpinner.getValue();
                 boolean permute = permuteCheckBox.isSelected();
                 String key = keyTextField.getText();
 
-                extractedWatermark = LSBWatermarking.extract(componentMatrix, bitPlane, permute, key, width, height);
-            } else if (method == WatermarkMethod.DCT) {
+                extractedWatermark = watermarking.extract(
+                        componentMatrix,
+                        width,
+                        height,
+                        bitPlane,
+                        permute,
+                        key
+                );
+            } else if (method == WatermarkType.DCT) {
                 int blockSize = blockSizeSpinner.getValue();
                 int[] coef1 = new int[]{coef1XSpinner.getValue(), coef1YSpinner.getValue()};
                 int[] coef2 = new int[]{coef2XSpinner.getValue(), coef2YSpinner.getValue()};
 
-                extractedWatermark = DCTWatermarking.extract(componentMatrix, blockSize, coef1, coef2, width, height);
+                extractedWatermark = watermarking.extract(
+                        componentMatrix,
+                        width,
+                        height,
+                        blockSize,
+                        coef1,
+                        coef2
+                );
             }
 
             if (extractedWatermark == null) {
@@ -985,14 +997,14 @@ public class WatermarkingDialog extends Stage {
 
             // Add to results table
             String attackName = "None";
-            WatermarkMethod method = methodComboBox.getValue();
+            WatermarkType method = methodComboBox.getValue();
 
             // Create a new result and add to table
             WatermarkResult result = new WatermarkResult(
                     attackName,
                     method.toString(),
                     componentComboBox.getValue().toString(),
-                    (method == WatermarkMethod.LSB) ? String.valueOf(bitPlaneSpinner.getValue()) :
+                    (method == WatermarkType.LSB) ? String.valueOf(bitPlaneSpinner.getValue()) :
                             String.valueOf(blockSizeSpinner.getValue()),
                     ber,
                     nc
