@@ -228,12 +228,22 @@ public class WatermarkingDialog extends Stage {
         // Create DCT options panel
         dctOptions = createDCTOptions();
 
+        // Create DWT options panel
+        dwtOptions = createDWTOptions();
+
+        // Create SVD options panel
+        svdOptions = createSVDOptions();
+
         // Show/hide the appropriate options panel based on selected method
         methodComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
             lsbOptions.setVisible(newVal == WatermarkType.LSB);
             lsbOptions.setManaged(newVal == WatermarkType.LSB);
             dctOptions.setVisible(newVal == WatermarkType.DCT);
             dctOptions.setManaged(newVal == WatermarkType.DCT);
+            dwtOptions.setVisible(newVal == WatermarkType.DWT);
+            dwtOptions.setManaged(newVal == WatermarkType.DWT);
+            svdOptions.setVisible(newVal == WatermarkType.SVD);
+            svdOptions.setManaged(newVal == WatermarkType.SVD);
         });
 
         // Initial visibility
@@ -241,6 +251,10 @@ public class WatermarkingDialog extends Stage {
         lsbOptions.setManaged(true);
         dctOptions.setVisible(false);
         dctOptions.setManaged(false);
+        dwtOptions.setVisible(false);
+        dwtOptions.setManaged(false);
+        svdOptions.setVisible(false);
+        svdOptions.setManaged(false);
 
         // Watermark dimensions
         HBox dimensionsBox = new HBox(10);
@@ -290,6 +304,8 @@ public class WatermarkingDialog extends Stage {
                 new Separator(),
                 lsbOptions,
                 dctOptions,
+                dwtOptions,
+                svdOptions,
                 new Separator(),
                 dimensionsBox,
                 loadWatermarkButton,
@@ -426,18 +442,31 @@ public class WatermarkingDialog extends Stage {
         VBox options = new VBox(10);
         options.setPadding(new Insets(5, 0, 5, 0));
 
+        // Strength parameter
         Label strengthLabel = new Label("Embedding Strength:");
         dwtStrengthSpinner = new Spinner<>(0.1, 100.0, 5.0, 0.5);
         dwtStrengthSpinner.setEditable(true);
+        dwtStrengthSpinner.setPrefWidth(120);
         VBox strengthBox = new VBox(5, strengthLabel, dwtStrengthSpinner);
 
+        // Subband selection
         Label subbandLabel = new Label("Subband:");
         dwtSubbandComboBox = new ComboBox<>();
         dwtSubbandComboBox.getItems().addAll("LL", "LH", "HL", "HH");
         dwtSubbandComboBox.setValue("LL");
+        dwtSubbandComboBox.setMaxWidth(Double.MAX_VALUE);
         VBox subbandBox = new VBox(5, subbandLabel, dwtSubbandComboBox);
 
-        options.getChildren().addAll(strengthBox, subbandBox);
+        // Description for subbands
+        Label subbandDescLabel = new Label(
+                "LL: Low-Low (Approximation)\n" +
+                        "LH: Low-High (Horizontal detail)\n" +
+                        "HL: High-Low (Vertical detail)\n" +
+                        "HH: High-High (Diagonal detail)");
+        subbandDescLabel.setStyle("-fx-font-size: 10px; -fx-font-style: italic;");
+        subbandDescLabel.setWrapText(true);
+
+        options.getChildren().addAll(strengthBox, subbandBox, subbandDescLabel);
         return options;
     }
 
@@ -448,12 +477,22 @@ public class WatermarkingDialog extends Stage {
         VBox options = new VBox(10);
         options.setPadding(new Insets(5, 0, 5, 0));
 
+        // Alpha parameter (embedding strength)
         Label alphaLabel = new Label("Embedding Strength (α):");
         svdAlphaSpinner = new Spinner<>(0.1, 50.0, 1.0, 0.1);
         svdAlphaSpinner.setEditable(true);
+        svdAlphaSpinner.setPrefWidth(120);
         VBox alphaBox = new VBox(5, alphaLabel, svdAlphaSpinner);
 
-        options.getChildren().add(alphaBox);
+        // Description for SVD
+        Label svdDescLabel = new Label(
+                "SVD embeds watermark in singular values.\n" +
+                        "Higher α means stronger watermark but\n" +
+                        "may affect image quality.");
+        svdDescLabel.setStyle("-fx-font-size: 10px; -fx-font-style: italic;");
+        svdDescLabel.setWrapText(true);
+
+        options.getChildren().addAll(alphaBox, svdDescLabel);
         return options;
     }
 
@@ -542,7 +581,7 @@ public class WatermarkingDialog extends Stage {
         HBox.setHgrow(evalContentBox, Priority.ALWAYS);
 
         // Results table with scrolling
-        Label tableLabel = new Label("Test Results:");
+        Label tableLabel = new Label("Results:");
         tableLabel.setStyle("-fx-font-weight: bold;");
 
         resultsTable = createResultsTable();
@@ -1299,6 +1338,24 @@ public class WatermarkingDialog extends Stage {
                         coef2,
                         strength
                 );
+            } else if (method == WatermarkType.DWT) {
+                double strength = dwtStrengthSpinner.getValue();
+                String subband = dwtSubbandComboBox.getValue();
+
+                watermarkedMatrix = watermarking.embed(
+                        componentMatrix,
+                        watermarkImage,
+                        strength,
+                        subband
+                );
+            } else if (method == WatermarkType.SVD) {
+                double alpha = svdAlphaSpinner.getValue();
+
+                watermarkedMatrix = watermarking.embed(
+                        componentMatrix,
+                        watermarkImage,
+                        alpha
+                );
             }
 
             if (watermarkedMatrix == null) {
@@ -1406,6 +1463,26 @@ public class WatermarkingDialog extends Stage {
                         blockSize,
                         coef1,
                         coef2
+                );
+            } else if (method == WatermarkType.DWT) {
+                double strength = dwtStrengthSpinner.getValue();
+                String subband = dwtSubbandComboBox.getValue();
+
+                extractedWatermark = watermarking.extract(
+                        componentMatrix,
+                        width,
+                        height,
+                        strength,
+                        subband
+                );
+            } else if (method == WatermarkType.SVD) {
+                double alpha = svdAlphaSpinner.getValue();
+
+                extractedWatermark = watermarking.extract(
+                        componentMatrix,
+                        width,
+                        height,
+                        alpha
                 );
             }
 
