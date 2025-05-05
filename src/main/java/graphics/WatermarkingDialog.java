@@ -4,10 +4,14 @@ import Jama.Matrix;
 import enums.QualityType;
 import enums.WatermarkType;
 import javafx.beans.property.SimpleStringProperty;
-import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
+import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.control.TextField;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
@@ -17,17 +21,6 @@ import javafx.scene.text.TextAlignment;
 import javafx.stage.FileChooser;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
-
-import javax.imageio.ImageIO;
-import java.awt.Graphics2D;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-
 import jpeg.Process;
 import utils.Logger;
 import watermarking.attacks.WatermarkAttacks;
@@ -35,6 +28,16 @@ import watermarking.core.AbstractWatermarking;
 import watermarking.core.WatermarkEvaluation;
 import watermarking.core.WatermarkResult;
 import watermarking.core.WatermarkingFactory;
+
+import javax.imageio.ImageIO;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Enhanced dialog for watermarking operations with improved attack simulation UI.
@@ -181,9 +184,21 @@ public class WatermarkingDialog extends Stage {
         statusLabel.setMinHeight(30);
         root.setBottom(statusLabel);
 
-        // Combine everything in horizontal layout
-        HBox mainContent = new HBox(10);
-        mainContent.getChildren().addAll(watermarkControlPanel, contentPanel, attackControlPanel);
+        // Create vertical separators
+        Separator leftSeparator = new Separator(Orientation.VERTICAL);
+        leftSeparator.setPadding(new Insets(0, 5, 0, 5));
+
+        Separator rightSeparator = new Separator(Orientation.VERTICAL);
+        rightSeparator.setPadding(new Insets(0, 5, 0, 5));
+
+        // Combine everything in horizontal layout with separators
+        HBox mainContent = new HBox(5);
+        mainContent.getChildren().addAll(
+                watermarkControlPanel,
+                leftSeparator,
+                contentPanel,
+                rightSeparator,
+                attackControlPanel);
         HBox.setHgrow(contentPanel, Priority.ALWAYS);
 
         root.setCenter(mainContent);
@@ -335,28 +350,62 @@ public class WatermarkingDialog extends Stage {
         // Coefficient pairs
         Label coefPairsLabel = new Label("Coefficient Pairs:");
 
-        Label coef1Label = new Label("Coef 1 (x,y):");
-        coef1XSpinner = new Spinner<>(0, 7, 3);
-        coef1YSpinner = new Spinner<>(0, 7, 1);
-        HBox coef1Box = new HBox(5, coef1Label, coef1XSpinner, coef1YSpinner);
+        // Create a GridPane for coefficient controls
+        GridPane coefGrid = new GridPane();
+        coefGrid.setHgap(5);
+        coefGrid.setVgap(5);
 
-        Label coef2Label = new Label("Coef 2 (x,y):");
+        // First coefficient (x,y)
+        Label coef1Label = new Label("Coef 1:");
+        coef1XSpinner = new Spinner<>(0, 7, 3);
+        coef1XSpinner.setPrefWidth(60);
+        coef1XSpinner.setEditable(true);
+        Label xLabel1 = new Label("x:");
+
+        coef1YSpinner = new Spinner<>(0, 7, 1);
+        coef1YSpinner.setPrefWidth(60);
+        coef1YSpinner.setEditable(true);
+        Label yLabel1 = new Label("y:");
+
+        // Second coefficient (x,y)
+        Label coef2Label = new Label("Coef 2:");
         coef2XSpinner = new Spinner<>(0, 7, 4);
+        coef2XSpinner.setPrefWidth(60);
+        coef2XSpinner.setEditable(true);
+        Label xLabel2 = new Label("x:");
+
         coef2YSpinner = new Spinner<>(0, 7, 1);
-        HBox coef2Box = new HBox(5, coef2Label, coef2XSpinner, coef2YSpinner);
+        coef2YSpinner.setPrefWidth(60);
+        coef2YSpinner.setEditable(true);
+        Label yLabel2 = new Label("y:");
+
+        // Add to grid
+        coefGrid.add(coef1Label, 0, 0);
+        coefGrid.add(xLabel1, 1, 0);
+        coefGrid.add(coef1XSpinner, 2, 0);
+        coefGrid.add(yLabel1, 3, 0);
+        coefGrid.add(coef1YSpinner, 4, 0);
+
+        coefGrid.add(coef2Label, 0, 1);
+        coefGrid.add(xLabel2, 1, 1);
+        coefGrid.add(coef2XSpinner, 2, 1);
+        coefGrid.add(yLabel2, 3, 1);
+        coefGrid.add(coef2YSpinner, 4, 1);
 
         // Strength
         Label strengthLabel = new Label("Embedding Strength:");
         strengthSpinner = new Spinner<>(1.0, 50.0, 10.0, 1.0);
         strengthSpinner.setEditable(true);
+        strengthSpinner.setPrefWidth(80);
+        strengthSpinner.setMaxWidth(80);
         HBox strengthBox = new HBox(10, strengthLabel, strengthSpinner);
+        strengthBox.setAlignment(Pos.CENTER_LEFT);
 
         // Add to options
         options.getChildren().addAll(
                 blockSizeBox,
                 coefPairsLabel,
-                coef1Box,
-                coef2Box,
+                coefGrid,
                 strengthBox
         );
 
