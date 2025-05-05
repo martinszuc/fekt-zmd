@@ -7,6 +7,8 @@ tasks.xml
 usage.statistics.xml
 dictionaries
 shelf/
+output/
+logs/
 
 # Ignore build and target directories
 /target/
