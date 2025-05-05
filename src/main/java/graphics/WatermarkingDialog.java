@@ -209,7 +209,7 @@ public class WatermarkingDialog extends Stage {
         watermarkControlPanel.setPadding(new Insets(10));
         watermarkControlPanel.setPrefWidth(280);
 
-        Label WatermarkTypeTitle = new Label("Watermarking Configuration");
+        Label WatermarkTypeTitle = new Label("Watermarking Config");
         WatermarkTypeTitle.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
         watermarkControlPanel.getChildren().add(WatermarkTypeTitle);
 
@@ -345,68 +345,102 @@ public class WatermarkingDialog extends Stage {
         blockSizeSpinner = new Spinner<>(4, 16, 8, 4);
         blockSizeSpinner.setEditable(true);
         blockSizeSpinner.setPrefWidth(80);
-        HBox blockSizeBox = new HBox(10, blockSizeLabel, blockSizeSpinner);
+        VBox blockSizeBox = new VBox(5, blockSizeLabel, blockSizeSpinner);
+
+        // Separator between block size and coefficient pairs
+        Separator blockCoefSeparator = new Separator(Orientation.HORIZONTAL);
+        blockCoefSeparator.setPadding(new Insets(5, 0, 5, 0));
 
         // Coefficient pairs
         Label coefPairsLabel = new Label("Coefficient Pairs:");
+        coefPairsLabel.setStyle("-fx-font-weight: bold;");
 
-        // Create a GridPane for coefficient controls
-        GridPane coefGrid = new GridPane();
-        coefGrid.setHgap(5);
-        coefGrid.setVgap(5);
+        // First coefficient (x,y) - using VBox and HBox for better layout control
+        Label coef1Label = new Label("Coefficient 1:");
+        HBox coef1Controls = new HBox(10);
 
-        // First coefficient (x,y)
-        Label coef1Label = new Label("Coef 1:");
+        Label xLabel1 = new Label("x:");
         coef1XSpinner = new Spinner<>(0, 7, 3);
         coef1XSpinner.setPrefWidth(60);
         coef1XSpinner.setEditable(true);
-        Label xLabel1 = new Label("x:");
 
+        Label yLabel1 = new Label("y:");
         coef1YSpinner = new Spinner<>(0, 7, 1);
         coef1YSpinner.setPrefWidth(60);
         coef1YSpinner.setEditable(true);
-        Label yLabel1 = new Label("y:");
 
-        // Second coefficient (x,y)
-        Label coef2Label = new Label("Coef 2:");
+        coef1Controls.getChildren().addAll(xLabel1, coef1XSpinner, yLabel1, coef1YSpinner);
+        VBox coef1Box = new VBox(5, coef1Label, coef1Controls);
+
+        // Small spacer
+        Region coefSpacer = new Region();
+        coefSpacer.setPrefHeight(5);
+
+        // Second coefficient (x,y) - using VBox and HBox for better layout control
+        Label coef2Label = new Label("Coefficient 2:");
+        HBox coef2Controls = new HBox(10);
+
+        Label xLabel2 = new Label("x:");
         coef2XSpinner = new Spinner<>(0, 7, 4);
         coef2XSpinner.setPrefWidth(60);
         coef2XSpinner.setEditable(true);
-        Label xLabel2 = new Label("x:");
 
+        Label yLabel2 = new Label("y:");
         coef2YSpinner = new Spinner<>(0, 7, 1);
         coef2YSpinner.setPrefWidth(60);
         coef2YSpinner.setEditable(true);
-        Label yLabel2 = new Label("y:");
 
-        // Add to grid
-        coefGrid.add(coef1Label, 0, 0);
-        coefGrid.add(xLabel1, 1, 0);
-        coefGrid.add(coef1XSpinner, 2, 0);
-        coefGrid.add(yLabel1, 3, 0);
-        coefGrid.add(coef1YSpinner, 4, 0);
+        coef2Controls.getChildren().addAll(xLabel2, coef2XSpinner, yLabel2, coef2YSpinner);
+        VBox coef2Box = new VBox(5, coef2Label, coef2Controls);
 
-        coefGrid.add(coef2Label, 0, 1);
-        coefGrid.add(xLabel2, 1, 1);
-        coefGrid.add(coef2XSpinner, 2, 1);
-        coefGrid.add(yLabel2, 3, 1);
-        coefGrid.add(coef2YSpinner, 4, 1);
+        // Separator before strength
+        Separator strengthSeparator = new Separator(Orientation.HORIZONTAL);
+        strengthSeparator.setPadding(new Insets(5, 0, 5, 0));
 
-        // Strength
+        // Strength - vertical layout with label above
         Label strengthLabel = new Label("Embedding Strength:");
         strengthSpinner = new Spinner<>(1.0, 50.0, 10.0, 1.0);
         strengthSpinner.setEditable(true);
-        strengthSpinner.setPrefWidth(80);
-        strengthSpinner.setMaxWidth(80);
-        HBox strengthBox = new HBox(10, strengthLabel, strengthSpinner);
-        strengthBox.setAlignment(Pos.CENTER_LEFT);
+        strengthSpinner.setPrefWidth(120);
+        VBox strengthBox = new VBox(5, strengthLabel, strengthSpinner);
+
+        // Separator before visibility factor
+        Separator visibilitySeparator = new Separator(Orientation.HORIZONTAL);
+        visibilitySeparator.setPadding(new Insets(5, 0, 5, 0));
+
+        // Visibility factor slider (0-1 range)
+        Label visibilityLabel = new Label("Watermark Visibility Factor:");
+        Slider visibilitySlider = new Slider(0.0, 1.0, 0.5);
+        visibilitySlider.setShowTickLabels(true);
+        visibilitySlider.setShowTickMarks(true);
+        visibilitySlider.setMajorTickUnit(0.25);
+        visibilitySlider.setBlockIncrement(0.1);
+
+        // Text field to display current value
+        TextField visibilityValueField = new TextField(String.format("%.2f", visibilitySlider.getValue()));
+        visibilityValueField.setPrefWidth(60);
+        visibilityValueField.setEditable(false);
+
+        // Update text field when slider value changes
+        visibilitySlider.valueProperty().addListener((observable, oldValue, newValue) -> {
+            visibilityValueField.setText(String.format("%.2f", newValue.doubleValue()));
+        });
+
+        HBox visibilityValueBox = new HBox(10, visibilitySlider, visibilityValueField);
+        VBox visibilityBox = new VBox(5, visibilityLabel, visibilityValueBox);
 
         // Add to options
         options.getChildren().addAll(
                 blockSizeBox,
+                blockCoefSeparator, // Separator between block size and coefficient pairs
                 coefPairsLabel,
-                coefGrid,
-                strengthBox
+                coef1Box,
+                coefSpacer,
+                coef2Box,
+                strengthSeparator,
+                strengthBox,
+                visibilitySeparator,
+                visibilityBox
         );
 
         return options;
@@ -536,10 +570,13 @@ public class WatermarkingDialog extends Stage {
         titleLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
 
         // ComboBox for selecting attack type
+        Label attackTypeLabel = new Label("Select Attack Type:");
         ComboBox<AttackType> attackTypeCombo = new ComboBox<>();
         attackTypeCombo.getItems().addAll(AttackType.values());
         attackTypeCombo.getSelectionModel().select(AttackType.JPEG_COMPRESSION);
         attackTypeCombo.setMaxWidth(Double.MAX_VALUE);
+
+        VBox attackTypeBox = new VBox(5, attackTypeLabel, attackTypeCombo);
 
         // Attack description label
         Label descriptionLabel = new Label(AttackType.JPEG_COMPRESSION.getDescription());
@@ -553,36 +590,55 @@ public class WatermarkingDialog extends Stage {
             }
         });
 
-        // Parameter controls
-        VBox parameterBox = new VBox(10);
-        parameterBox.setPadding(new Insets(10, 0, 10, 0));
+        // Parameter controls header
+        Label parametersHeaderLabel = new Label("Attack Parameters:");
+        parametersHeaderLabel.setStyle("-fx-font-weight: bold;");
 
-        // JPEG quality parameter
+        // Small separator
+        Separator parametersSeparator = new Separator(Orientation.HORIZONTAL);
+        parametersSeparator.setPadding(new Insets(5, 0, 5, 0));
+
+        // Parameter controls
+        VBox parameterBox = new VBox(15);
+        parameterBox.setPadding(new Insets(5, 0, 10, 0));
+
+        // JPEG quality parameter - vertical layout
         Label jpegQualityLabel = new Label("JPEG Quality (1-100):");
         Spinner<Integer> jpegQualitySpinner = new Spinner<>(1, 100, 75);
         jpegQualitySpinner.setEditable(true);
-        jpegQualitySpinner.setPrefWidth(120);
-        HBox jpegQualityBox = new HBox(10, jpegQualityLabel, jpegQualitySpinner);
-        jpegQualityBox.setAlignment(Pos.CENTER_LEFT);
+        jpegQualitySpinner.setMaxWidth(120);
+        VBox jpegQualityBox = new VBox(5, jpegQualityLabel, jpegQualitySpinner);
 
-        // PNG compression level
+        // Small separator
+        Separator jpegPngSeparator = new Separator(Orientation.HORIZONTAL);
+        jpegPngSeparator.setPadding(new Insets(2, 0, 2, 0));
+
+        // PNG compression level - vertical layout
         Label pngLevelLabel = new Label("PNG Compression (1-9):");
         Spinner<Integer> pngLevelSpinner = new Spinner<>(1, 9, 5);
         pngLevelSpinner.setEditable(true);
-        pngLevelSpinner.setPrefWidth(120);
-        HBox pngLevelBox = new HBox(10, pngLevelLabel, pngLevelSpinner);
-        pngLevelBox.setAlignment(Pos.CENTER_LEFT);
+        pngLevelSpinner.setMaxWidth(120);
+        VBox pngLevelBox = new VBox(5, pngLevelLabel, pngLevelSpinner);
 
-        // Crop percentage
+        // Small separator
+        Separator pngCropSeparator = new Separator(Orientation.HORIZONTAL);
+        pngCropSeparator.setPadding(new Insets(2, 0, 2, 0));
+
+        // Crop percentage - vertical layout
         Label cropPercentLabel = new Label("Crop Percentage (0.0-0.5):");
         Spinner<Double> cropPercentSpinner = new Spinner<>(0.0, 0.5, 0.2, 0.05);
         cropPercentSpinner.setEditable(true);
-        cropPercentSpinner.setPrefWidth(120);
-        HBox cropPercentBox = new HBox(10, cropPercentLabel, cropPercentSpinner);
-        cropPercentBox.setAlignment(Pos.CENTER_LEFT);
+        cropPercentSpinner.setMaxWidth(120);
+        VBox cropPercentBox = new VBox(5, cropPercentLabel, cropPercentSpinner);
 
-        // Add parameter controls to parameter box
-        parameterBox.getChildren().addAll(jpegQualityBox, pngLevelBox, cropPercentBox);
+        // Add parameter controls to parameter box with separators
+        parameterBox.getChildren().addAll(
+                jpegQualityBox,
+                jpegPngSeparator,
+                pngLevelBox,
+                pngCropSeparator,
+                cropPercentBox
+        );
 
         // Apply attack button
         Button applyAttackButton = new Button("Apply Attack");
@@ -652,14 +708,17 @@ public class WatermarkingDialog extends Stage {
             }
         });
 
+        // Main separator
+        Separator mainSeparator = new Separator(Orientation.HORIZONTAL);
+        mainSeparator.setPadding(new Insets(10, 0, 10, 0));
+
         // Add everything to attack box
         attackBox.getChildren().addAll(
                 titleLabel,
-                new Label("Select Attack Type:"),
-                attackTypeCombo,
+                attackTypeBox,
                 descriptionLabel,
-                new Separator(),
-                new Label("Attack Parameters:"),
+                mainSeparator,
+                parametersHeaderLabel,
                 parameterBox,
                 applyAttackButton
         );
