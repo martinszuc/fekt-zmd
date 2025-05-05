@@ -2,6 +2,8 @@ package watermarking.core;
 
 import enums.WatermarkType;
 import watermarking.frequency.DCTWatermarking;
+import watermarking.frequency.DWTWatermarking;
+import watermarking.frequency.SVDWatermarking;
 import watermarking.spatial.LSBWatermarking;
 
 /**
@@ -21,6 +23,10 @@ public class WatermarkingFactory {
                 return new LSBWatermarking();
             case DCT:
                 return new DCTWatermarking();
+            case DWT:
+                return new DWTWatermarking();
+            case SVD:
+                return new SVDWatermarking();
             default:
                 throw new IllegalArgumentException("Unsupported watermarking method: " + method);
         }

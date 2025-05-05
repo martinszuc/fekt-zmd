@@ -102,6 +102,15 @@ public class WatermarkingDialog extends Stage {
 
     private VBox lsbOptions;
     private VBox dctOptions;
+    private VBox dwtOptions;
+    private VBox svdOptions;
+
+    // DWT controls
+    private Spinner<Double> dwtStrengthSpinner;
+    private ComboBox<String> dwtSubbandComboBox;
+
+    // SVD controls
+    private Spinner<Double> svdAlphaSpinner;
 
     /**
      * Creates a new watermarking dialog.
@@ -407,6 +416,44 @@ public class WatermarkingDialog extends Stage {
                 strengthBox
         );
 
+        return options;
+    }
+
+    /**
+     * Options panel for DWT watermarking.
+     */
+    private VBox createDWTOptions() {
+        VBox options = new VBox(10);
+        options.setPadding(new Insets(5, 0, 5, 0));
+
+        Label strengthLabel = new Label("Embedding Strength:");
+        dwtStrengthSpinner = new Spinner<>(0.1, 100.0, 5.0, 0.5);
+        dwtStrengthSpinner.setEditable(true);
+        VBox strengthBox = new VBox(5, strengthLabel, dwtStrengthSpinner);
+
+        Label subbandLabel = new Label("Subband:");
+        dwtSubbandComboBox = new ComboBox<>();
+        dwtSubbandComboBox.getItems().addAll("LL", "LH", "HL", "HH");
+        dwtSubbandComboBox.setValue("LL");
+        VBox subbandBox = new VBox(5, subbandLabel, dwtSubbandComboBox);
+
+        options.getChildren().addAll(strengthBox, subbandBox);
+        return options;
+    }
+
+    /**
+     * Options panel for SVD watermarking.
+     */
+    private VBox createSVDOptions() {
+        VBox options = new VBox(10);
+        options.setPadding(new Insets(5, 0, 5, 0));
+
+        Label alphaLabel = new Label("Embedding Strength (α):");
+        svdAlphaSpinner = new Spinner<>(0.1, 50.0, 1.0, 0.1);
+        svdAlphaSpinner.setEditable(true);
+        VBox alphaBox = new VBox(5, alphaLabel, svdAlphaSpinner);
+
+        options.getChildren().add(alphaBox);
         return options;
     }
 

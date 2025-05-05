@@ -5,7 +5,9 @@ package enums;
  */
 public enum WatermarkType {
     LSB("LSB (Spatial Domain)"),
-    DCT("DCT (Frequency Domain)");
+    DCT("DCT (Frequency Domain)"),
+    DWT("DWT (Wavelet Domain)"),
+    SVD("SVD (Singular Value Decomposition)");
 
     private final String displayName;
 
