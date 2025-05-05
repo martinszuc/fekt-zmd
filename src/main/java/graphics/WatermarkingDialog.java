@@ -3,6 +3,7 @@ package graphics;
 import Jama.Matrix;
 import enums.QualityType;
 import enums.WatermarkType;
+import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
@@ -736,13 +737,25 @@ public class WatermarkingDialog extends Stage {
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
         // Create columns
+        TableColumn<WatermarkResult, Integer> idCol = new TableColumn<>("Test #");
+        idCol.setCellValueFactory(cellData ->
+                new SimpleIntegerProperty(cellData.getValue().getTestId()).asObject());
+
         TableColumn<WatermarkResult, String> attackCol = new TableColumn<>("Attack");
         attackCol.setCellValueFactory(cellData ->
                 new SimpleStringProperty(cellData.getValue().getAttackName()));
 
+        TableColumn<WatermarkResult, String> paramsCol = new TableColumn<>("Parameters");
+        paramsCol.setCellValueFactory(cellData ->
+                new SimpleStringProperty(cellData.getValue().getAttackParameters()));
+
         TableColumn<WatermarkResult, String> methodCol = new TableColumn<>("Method");
         methodCol.setCellValueFactory(cellData ->
                 new SimpleStringProperty(cellData.getValue().getMethod()));
+
+        TableColumn<WatermarkResult, String> compCol = new TableColumn<>("Component");
+        compCol.setCellValueFactory(cellData ->
+                new SimpleStringProperty(cellData.getValue().getComponent()));
 
         TableColumn<WatermarkResult, String> berCol = new TableColumn<>("BER");
         berCol.setCellValueFactory(cellData ->
@@ -757,15 +770,18 @@ public class WatermarkingDialog extends Stage {
         qualityCol.setCellValueFactory(cellData ->
                 new SimpleStringProperty(cellData.getValue().getQualityRating()));
 
-        // Add columns to table
-        table.getColumns().addAll(attackCol, methodCol, berCol, ncCol, qualityCol);
+        // Add a robustness rating column
+        TableColumn<WatermarkResult, String> robustnessCol = new TableColumn<>("Robustness");
+        robustnessCol.setCellValueFactory(cellData ->
+                new SimpleStringProperty(cellData.getValue().getRobustnessLevel()));
 
-        // Adjust column widths
-        attackCol.prefWidthProperty().bind(table.widthProperty().multiply(0.30));
-        methodCol.prefWidthProperty().bind(table.widthProperty().multiply(0.20));
-        berCol.prefWidthProperty().bind(table.widthProperty().multiply(0.15));
-        ncCol.prefWidthProperty().bind(table.widthProperty().multiply(0.15));
-        qualityCol.prefWidthProperty().bind(table.widthProperty().multiply(0.20));
+        // Add columns to table
+        table.getColumns().addAll(idCol, attackCol, paramsCol, methodCol, compCol,
+                berCol, ncCol, qualityCol, robustnessCol);
+
+        // Set horizontal scroll policy to show all columns
+        ScrollPane scrollPane = new ScrollPane(table);
+        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
 
         return table;
     }

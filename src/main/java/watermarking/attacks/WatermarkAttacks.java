@@ -1,20 +1,25 @@
 package watermarking.attacks;
 
-import java.awt.Graphics2D;
-import java.awt.geom.AffineTransform;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
+import Jama.Matrix;
+import enums.TransformType;
+import jpeg.Process;
+import utils.Logger;
+
 import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageWriteParam;
 import javax.imageio.ImageWriter;
 import javax.imageio.stream.ImageOutputStream;
-
-import enums.TransformType;
-import jpeg.Process;
-import utils.Logger;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.awt.image.ConvolveOp;
+import java.awt.image.Kernel;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Random;
 
 /**
  * Implements various attacks to test watermark robustness.
@@ -405,5 +410,230 @@ public class WatermarkAttacks {
             default:
                 return image; // No attack, return original
         }
+    }
+
+    /**
+     * Applies Gaussian noise attack to the watermarked image.
+     * This adds random noise to the image that can degrade the watermark.
+     *
+     * @param image Original image
+     * @param standardDeviation Amount of noise (e.g., 10.0 for moderate noise)
+     * @return Attacked image
+     */
+    public static BufferedImage gaussianNoiseAttack(BufferedImage image, double standardDeviation) {
+        Logger.info("Applying Gaussian noise attack with std dev: " + standardDeviation);
+
+        int width = image.getWidth();
+        int height = image.getHeight();
+        BufferedImage noisyImage = new BufferedImage(width, height, image.getType());
+
+        // Create random number generator
+        Random random = new Random();
+
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                Color color = new Color(image.getRGB(x, y));
+
+                // Add Gaussian noise to each channel
+                int red = color.getRed() + (int)(random.nextGaussian() * standardDeviation);
+                int green = color.getGreen() + (int)(random.nextGaussian() * standardDeviation);
+                int blue = color.getBlue() + (int)(random.nextGaussian() * standardDeviation);
+
+                // Clamp values to valid range [0, 255]
+                red = Math.max(0, Math.min(255, red));
+                green = Math.max(0, Math.min(255, green));
+                blue = Math.max(0, Math.min(255, blue));
+
+                noisyImage.setRGB(x, y, new Color(red, green, blue).getRGB());
+            }
+        }
+
+        Logger.info("Gaussian noise attack completed");
+        return noisyImage;
+    }
+
+    /**
+     * Applies median filtering attack to the watermarked image.
+     * This is a common image processing operation that can damage watermarks.
+     *
+     * @param image Original image
+     * @param radius Filter radius (1, 2, or 3 are common values)
+     * @return Attacked image
+     */
+    public static BufferedImage medianFilterAttack(BufferedImage image, int radius) {
+        Logger.info("Applying median filter attack with radius: " + radius);
+
+        int width = image.getWidth();
+        int height = image.getHeight();
+        BufferedImage filteredImage = new BufferedImage(width, height, image.getType());
+
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                // Collect pixel values in the neighborhood
+                ArrayList<Integer> redValues = new ArrayList<>();
+                ArrayList<Integer> greenValues = new ArrayList<>();
+                ArrayList<Integer> blueValues = new ArrayList<>();
+
+                for (int dy = -radius; dy <= radius; dy++) {
+                    for (int dx = -radius; dx <= radius; dx++) {
+                        int nx = Math.max(0, Math.min(width - 1, x + dx));
+                        int ny = Math.max(0, Math.min(height - 1, y + dy));
+
+                        Color color = new Color(image.getRGB(nx, ny));
+                        redValues.add(color.getRed());
+                        greenValues.add(color.getGreen());
+                        blueValues.add(color.getBlue());
+                    }
+                }
+
+                // Sort and find median values
+                Collections.sort(redValues);
+                Collections.sort(greenValues);
+                Collections.sort(blueValues);
+
+                int medianIndex = redValues.size() / 2;
+                int medianRed = redValues.get(medianIndex);
+                int medianGreen = greenValues.get(medianIndex);
+                int medianBlue = blueValues.get(medianIndex);
+
+                filteredImage.setRGB(x, y, new Color(medianRed, medianGreen, medianBlue).getRGB());
+            }
+        }
+
+        Logger.info("Median filter attack completed");
+        return filteredImage;
+    }
+
+    /**
+     * Applies histogram equalization attack to the watermarked image.
+     * This enhances contrast and can disrupt watermarks.
+     *
+     * @param image Original image
+     * @return Attacked image
+     */
+    public static BufferedImage histogramEqualizationAttack(BufferedImage image) {
+        Logger.info("Applying histogram equalization attack");
+
+        int width = image.getWidth();
+        int height = image.getHeight();
+        BufferedImage equalizedImage = new BufferedImage(width, height, image.getType());
+
+        // Convert to YCbCr for equalization (only equalize Y)
+        Process process = new Process(image);
+        process.convertToYCbCr();
+
+        // Get Y component
+        Matrix yMatrix = process.getY();
+        double[][] yArray = yMatrix.getArray();
+
+        // Calculate histogram
+        int[] histogram = new int[256];
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int value = (int)Math.round(yArray[y][x]);
+                value = Math.max(0, Math.min(255, value));
+                histogram[value]++;
+            }
+        }
+
+        // Calculate cumulative histogram
+        int[] cumulativeHist = new int[256];
+        cumulativeHist[0] = histogram[0];
+        for (int i = 1; i < 256; i++) {
+            cumulativeHist[i] = cumulativeHist[i-1] + histogram[i];
+        }
+
+        // Create lookup table for equalization
+        int[] lookupTable = new int[256];
+        int totalPixels = width * height;
+        for (int i = 0; i < 256; i++) {
+            lookupTable[i] = (int)Math.round(255.0 * cumulativeHist[i] / totalPixels);
+        }
+
+        // Apply equalization to Y component
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int value = (int)Math.round(yArray[y][x]);
+                value = Math.max(0, Math.min(255, value));
+                yArray[y][x] = lookupTable[value];
+            }
+        }
+
+        // Convert back to RGB
+        process.convertToRGB();
+        equalizedImage = process.getRGBImage();
+
+        Logger.info("Histogram equalization attack completed");
+        return equalizedImage;
+    }
+
+    /**
+     * Applies JPEG2000 compression attack (simulated with multiple compressions).
+     *
+     * @param image Original image
+     * @param quality Compression quality (1-100)
+     * @return Attacked image
+     */
+    public static BufferedImage jpeg2000SimulationAttack(BufferedImage image, float quality) {
+        Logger.info("Applying simulated JPEG2000 compression attack with quality: " + quality);
+
+        // Apply wavelet-based compression simulation using multiple JPEG compressions
+        // with different quality factors to simulate wavelet compression artifacts
+
+        // First JPEG compression with given quality
+        BufferedImage compressedImage = jpegCompressionAttack(image, quality);
+
+        // Second JPEG compression with slightly different quality to create different artifacts
+        compressedImage = jpegCompressionAttack(compressedImage, quality * 0.9f);
+
+        // Apply a slight blur to simulate loss of high-frequency detail in wavelets
+        BufferedImage blurredImage = new BufferedImage(
+                compressedImage.getWidth(), compressedImage.getHeight(), compressedImage.getType());
+
+        float[] blurKernel = {
+                0.0625f, 0.125f, 0.0625f,
+                0.125f, 0.25f, 0.125f,
+                0.0625f, 0.125f, 0.0625f
+        };
+
+        Kernel kernel = new Kernel(3, 3, blurKernel);
+        ConvolveOp op = new ConvolveOp(kernel, ConvolveOp.EDGE_NO_OP, null);
+        op.filter(compressedImage, blurredImage);
+
+        Logger.info("Simulated JPEG2000 compression attack completed");
+        return blurredImage;
+    }
+
+    /**
+     * Applies sharpening attack to the watermarked image.
+     *
+     * @param image Original image
+     * @param amount Sharpening amount (0.0-2.0, where 1.0 is moderate)
+     * @return Attacked image
+     */
+    public static BufferedImage sharpeningAttack(BufferedImage image, float amount) {
+        Logger.info("Applying sharpening attack with amount: " + amount);
+
+        int width = image.getWidth();
+        int height = image.getHeight();
+        BufferedImage sharpenedImage = new BufferedImage(width, height, image.getType());
+
+        // Define sharpening kernel
+        float center = 1.0f + 4.0f * amount;
+        float corner = -amount / 4.0f;
+        float side = -amount;
+
+        float[] sharpenKernel = {
+                corner, side, corner,
+                side, center, side,
+                corner, side, corner
+        };
+
+        Kernel kernel = new Kernel(3, 3, sharpenKernel);
+        ConvolveOp op = new ConvolveOp(kernel, ConvolveOp.EDGE_NO_OP, null);
+        op.filter(image, sharpenedImage);
+
+        Logger.info("Sharpening attack completed");
+        return sharpenedImage;
     }
 }
