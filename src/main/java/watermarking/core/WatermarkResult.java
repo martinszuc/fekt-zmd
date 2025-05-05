@@ -24,6 +24,7 @@ public class WatermarkResult {
     private double wnr;                  // Watermark-to-Noise Ratio
     private String timestamp;            // When the test was performed
     private String attackParameters;     // Parameters used for the attack (e.g., JPEG quality)
+    private String watermarkConfig;      // Description of watermark configuration used
 
     // Static counter for generating unique test IDs
     private static int nextTestId = 1;
@@ -53,6 +54,7 @@ public class WatermarkResult {
         this.wnr = 0.0;
         this.timestamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
         this.attackParameters = "Default";
+        this.watermarkConfig = "Default";
     }
 
     /**
@@ -75,6 +77,29 @@ public class WatermarkResult {
         this.psnr = psnr;
         this.wnr = wnr;
         this.attackParameters = attackParameters;
+    }
+
+    /**
+     * Creates a new watermark evaluation result with all metrics, attack parameters,
+     * and watermark configuration information.
+     *
+     * @param attackType The type of attack applied
+     * @param watermarkType The type of watermarking used
+     * @param component The image component (Y, Cb, Cr)
+     * @param parameter Key parameter used in watermarking
+     * @param ber Bit Error Rate result
+     * @param nc Normalized Correlation result
+     * @param psnr Peak Signal-to-Noise Ratio result
+     * @param wnr Watermark-to-Noise Ratio result
+     * @param attackParameters Description of attack parameters used
+     * @param watermarkConfig Description of watermark configuration used
+     */
+    public WatermarkResult(AttackType attackType, WatermarkType watermarkType,
+                           String component, String parameter, double ber, double nc,
+                           double psnr, double wnr, String attackParameters,
+                           String watermarkConfig) {
+        this(attackType, watermarkType, component, parameter, ber, nc, psnr, wnr, attackParameters);
+        this.watermarkConfig = watermarkConfig;
     }
 
     // Getters
@@ -104,6 +129,24 @@ public class WatermarkResult {
      */
     public String getAttackParameters() {
         return attackParameters;
+    }
+
+    /**
+     * Gets the description of watermark configuration.
+     *
+     * @return Watermark configuration description
+     */
+    public String getWatermarkConfig() {
+        return watermarkConfig;
+    }
+
+    /**
+     * Sets the watermark configuration description.
+     *
+     * @param watermarkConfig The watermark configuration description
+     */
+    public void setWatermarkConfig(String watermarkConfig) {
+        this.watermarkConfig = watermarkConfig;
     }
 
     /**
@@ -198,8 +241,8 @@ public class WatermarkResult {
 
     @Override
     public String toString() {
-        return String.format("Test #%d - %s - Attack: %s (%s), Method: %s, Component: %s, Parameter: %s, BER: %.4f, NC: %.4f",
-                testId, timestamp, attackName, attackParameters, method, component, parameter, ber, nc);
+        return String.format("Test #%d - %s - Attack: %s (%s), Method: %s, Component: %s, Parameter: %s, BER: %.4f, NC: %.4f, Config: %s",
+                testId, timestamp, attackName, attackParameters, method, component, parameter, ber, nc, watermarkConfig);
     }
 
     /**

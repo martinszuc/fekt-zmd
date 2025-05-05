@@ -38,7 +38,7 @@ public class WatermarkTestReport {
             String[] headers = {
                     "Test ID", "Timestamp", "Attack", "Parameters", "Method",
                     "Component", "Parameter", "BER", "NC", "PSNR", "WNR",
-                    "Quality Rating", "Robustness"
+                    "Quality Rating", "Robustness", "Watermark Config"
             };
 
             // Add header cells with styling
@@ -83,6 +83,7 @@ public class WatermarkTestReport {
 
                 row.createCell(11).setCellValue(result.getQualityRating());
                 row.createCell(12).setCellValue(result.getRobustnessLevel());
+                row.createCell(13).setCellValue(result.getWatermarkConfig());
             }
 
             // Auto-size columns for better readability
@@ -97,6 +98,10 @@ public class WatermarkTestReport {
             // Create comparison sheet for methods
             createComparisonSheet(workbook, results, "Method Comparison",
                     result -> result.getMethod() + " (" + result.getComponent() + ", " + result.getParameter() + ")");
+
+            // Create comparison sheet for watermark configurations
+            createComparisonSheet(workbook, results, "Watermark Config Comparison",
+                    WatermarkResult::getWatermarkConfig);
 
             // Write the workbook to file
             try (FileOutputStream fileOut = new FileOutputStream(outputPath)) {
@@ -193,10 +198,20 @@ public class WatermarkTestReport {
             // Create row
             Row row = sheet.createRow(rowNum++);
             row.createCell(0).setCellValue(groupName);
-            row.createCell(1).setCellValue(avgBer);
-            row.createCell(2).setCellValue(minBer);
-            row.createCell(3).setCellValue(maxBer);
-            row.createCell(4).setCellValue(avgNc);
+
+            // Format numeric cells
+            Cell avgBerCell = row.createCell(1);
+            avgBerCell.setCellValue(avgBer);
+
+            Cell minBerCell = row.createCell(2);
+            minBerCell.setCellValue(minBer);
+
+            Cell maxBerCell = row.createCell(3);
+            maxBerCell.setCellValue(maxBer);
+
+            Cell avgNcCell = row.createCell(4);
+            avgNcCell.setCellValue(avgNc);
+
             row.createCell(5).setCellValue(count);
             row.createCell(6).setCellValue(qualityDistribution);
         }
@@ -221,7 +236,7 @@ public class WatermarkTestReport {
         StringBuilder csv = new StringBuilder();
 
         // Add header
-        csv.append("TestID,Timestamp,Attack,Parameters,Method,Component,Parameter,BER,NC,PSNR,WNR,QualityRating,Robustness\n");
+        csv.append("TestID,Timestamp,Attack,Parameters,Method,Component,Parameter,BER,NC,PSNR,WNR,QualityRating,Robustness,WatermarkConfig\n");
 
         // Add data rows
         for (WatermarkResult result : results) {
@@ -237,7 +252,8 @@ public class WatermarkTestReport {
             csv.append(result.getPsnr()).append(",");
             csv.append(result.getWnr()).append(",");
             csv.append(escapeForCsv(result.getQualityRating())).append(",");
-            csv.append(escapeForCsv(result.getRobustnessLevel())).append("\n");
+            csv.append(escapeForCsv(result.getRobustnessLevel())).append(",");
+            csv.append(escapeForCsv(result.getWatermarkConfig())).append("\n");
         }
 
         // Write to file

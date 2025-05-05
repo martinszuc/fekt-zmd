@@ -4,7 +4,13 @@ import Jama.Matrix;
 import enums.AttackType;
 import enums.QualityType;
 import enums.WatermarkType;
+import javafx.scene.control.*;
+import javafx.scene.control.Menu;
+import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.scene.layout.*;
 import javafx.stage.FileChooser;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -18,14 +24,8 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
-import javafx.scene.control.*;
-import javafx.scene.control.cell.PropertyValueFactory;
-import javafx.scene.image.Image;
-import javafx.scene.image.ImageView;
-import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.text.TextAlignment;
-import javafx.stage.FileChooser;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import jpeg.Process;
@@ -68,6 +68,7 @@ public class WatermarkingDialog extends Stage {
     private BufferedImage extractedWatermark;
     private Process watermarkedProcess;
     private List<WatermarkResult> results = new ArrayList<>();
+    private String watermarkConfigDesc = "Default"; // Description of current watermark
 
     // UI components for watermarking
     private ComboBox<WatermarkType> methodComboBox;
@@ -144,6 +145,10 @@ public class WatermarkingDialog extends Stage {
         BorderPane root = new BorderPane();
         root.setPadding(new Insets(10));
 
+        // Create menu bar
+        MenuBar menuBar = createMenuBar();
+        root.setTop(menuBar);
+
         // Create the layout
         createControls(root);
 
@@ -157,6 +162,48 @@ public class WatermarkingDialog extends Stage {
 
         // Update UI
         updateImageViews();
+    }
+
+    /**
+     * Creates the menu bar for the watermarking dialog
+     */
+    private MenuBar createMenuBar() {
+        MenuBar menuBar = new MenuBar();
+
+        // File menu
+        Menu fileMenu = new Menu("File");
+        MenuItem saveReportItem = new MenuItem("Export Test Report...");
+        saveReportItem.setOnAction(e -> exportTestReport());
+
+        MenuItem closeItem = new MenuItem("Close");
+        closeItem.setOnAction(e -> close());
+
+        fileMenu.getItems().addAll(saveReportItem, new SeparatorMenuItem(), closeItem);
+
+        // Watermark menu
+        Menu watermarkMenu = new Menu("Watermark");
+        MenuItem configureWatermarkItem = new MenuItem("Configure Watermark...");
+        configureWatermarkItem.setOnAction(e -> openWatermarkConfigDialog());
+
+        MenuItem loadWatermarkItem = new MenuItem("Load Watermark...");
+        loadWatermarkItem.setOnAction(e -> loadWatermark());
+
+        MenuItem createDefaultItem = new MenuItem("Create Default");
+        createDefaultItem.setOnAction(e -> createDefaultWatermark());
+
+        watermarkMenu.getItems().addAll(configureWatermarkItem, loadWatermarkItem, createDefaultItem);
+
+        // Help menu
+        Menu helpMenu = new Menu("Help");
+        MenuItem aboutItem = new MenuItem("About");
+        aboutItem.setOnAction(e -> showAboutDialog());
+
+        helpMenu.getItems().add(aboutItem);
+
+        // Add menus to menu bar
+        menuBar.getMenus().addAll(fileMenu, watermarkMenu, helpMenu);
+
+        return menuBar;
     }
 
     private void createControls(BorderPane root) {
@@ -269,33 +316,23 @@ public class WatermarkingDialog extends Stage {
 
         dimensionsBox.getChildren().addAll(dimensionsLabel, watermarkWidthField, xLabel, watermarkHeightField);
 
-        // Watermark buttons
-        Button loadWatermarkButton = new Button("Load Watermark");
-        loadWatermarkButton.setMaxWidth(Double.MAX_VALUE);
-        loadWatermarkButton.setOnAction(e -> loadWatermark());
-
-        Button createWatermarkButton = new Button("Create Watermark");
-        createWatermarkButton.setMaxWidth(Double.MAX_VALUE);
-        createWatermarkButton.setOnAction(e -> createWatermark());
+        // Configure Watermark button
+        Button configureWatermarkButton = new Button("Configure Watermark");
+        configureWatermarkButton.setMaxWidth(Double.MAX_VALUE);
+        configureWatermarkButton.setOnAction(e -> openWatermarkConfigDialog());
 
         // Action buttons
         Button embedButton = new Button("Embed Watermark");
         embedButton.setMaxWidth(Double.MAX_VALUE);
-        embedButton.setStyle("-fx-font-weight: bold;");
+        embedButton.setPrefHeight(50);
+        embedButton.setStyle("-fx-font-weight: bold; -fx-background-color: #4CAF50; -fx-text-fill: white;");
         embedButton.setOnAction(e -> embedWatermark());
 
         Button extractButton = new Button("Extract Watermark");
         extractButton.setMaxWidth(Double.MAX_VALUE);
-        extractButton.setStyle("-fx-font-weight: bold;");
+        extractButton.setPrefHeight(50);
+        extractButton.setStyle("-fx-font-weight: bold; -fx-background-color: #FFC107; -fx-text-fill: black;");
         extractButton.setOnAction(e -> extractWatermark());
-
-        Button evaluateButton = new Button("Evaluate Quality");
-        evaluateButton.setMaxWidth(Double.MAX_VALUE);
-        evaluateButton.setOnAction(e -> evaluateWatermark());
-
-        Button exportReportButton = new Button("Export Test Report");
-        exportReportButton.setMaxWidth(Double.MAX_VALUE);
-        exportReportButton.setOnAction(e -> exportTestReport());
 
         // Add everything to the watermark control panel
         watermarkControlPanel.getChildren().addAll(
@@ -308,13 +345,20 @@ public class WatermarkingDialog extends Stage {
                 svdOptions,
                 new Separator(),
                 dimensionsBox,
-                loadWatermarkButton,
-                createWatermarkButton,
+                configureWatermarkButton,
+                new Separator()
+        );
+
+        // Create a VBox for the action buttons at the bottom
+        VBox actionButtonsBox = new VBox(10);
+        actionButtonsBox.getChildren().addAll(embedButton, extractButton);
+
+        // Add a spring to push buttons to the bottom
+        VBox.setVgrow(new Region(), Priority.ALWAYS);
+        watermarkControlPanel.getChildren().addAll(
+                new Region(),  // This region will expand to fill space
                 new Separator(),
-                embedButton,
-                extractButton,
-                evaluateButton,
-                exportReportButton
+                actionButtonsBox
         );
 
         return watermarkControlPanel;
@@ -897,6 +941,68 @@ public class WatermarkingDialog extends Stage {
     }
 
     /**
+     * Opens the watermark configuration dialog to create or customize watermarks
+     */
+    private void openWatermarkConfigDialog() {
+        try {
+            // Get current watermark dimensions
+            int width = watermarkImage != null ? watermarkImage.getWidth() : 64;
+            int height = watermarkImage != null ? watermarkImage.getHeight() : 64;
+
+            try {
+                width = Integer.parseInt(watermarkWidthField.getText());
+                height = Integer.parseInt(watermarkHeightField.getText());
+            } catch (NumberFormatException e) {
+                // Use defaults if fields contain invalid values
+            }
+
+            // Create and show the configuration dialog
+            WatermarkConfigurationDialog configDialog = new WatermarkConfigurationDialog(
+                    this, watermarkImage, width, height,
+                    (newWatermark, newWidth, newHeight) -> {
+                        // Handle selected watermark
+                        watermarkImage = newWatermark;
+                        watermarkWidthField.setText(String.valueOf(newWidth));
+                        watermarkHeightField.setText(String.valueOf(newHeight));
+
+                        // Update the configuration description based on the last selection
+                        if (newWatermark != null) {
+                            // Determine the type of watermark that was created
+                            if (configDialog.getLastSelectedPreset() != null) {
+                                watermarkConfigDesc = configDialog.getLastSelectedPreset().toString();
+                            } else {
+                                watermarkConfigDesc = "Custom " + newWidth + "x" + newHeight;
+                            }
+                        }
+
+                        // Update the UI
+                        updateImageViews();
+                    }
+            );
+
+            configDialog.showAndWait();
+
+        } catch (Exception e) {
+            Logger.error("Error opening watermark configuration dialog: " + e.getMessage());
+            showStatus("Error opening configuration dialog: " + e.getMessage(), "error");
+        }
+    }
+
+    /**
+     * Shows a simple about dialog with information about the application
+     */
+    private void showAboutDialog() {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("About Watermarking Tool");
+        alert.setHeaderText("Image Watermarking Application");
+        alert.setContentText("This application demonstrates various watermarking techniques and their " +
+                "robustness against common attacks.\n\n" +
+                "Supported methods: LSB, DCT, DWT, SVD\n" +
+                "Created for ZMD course project at BUT FEEC");
+        alert.showAndWait();
+    }
+
+    /**
      * Creates the results table for tracking attack performance
      */
     private TableView<WatermarkResult> createResultsTable() {
@@ -930,6 +1036,12 @@ public class WatermarkingDialog extends Stage {
         compCol.setCellValueFactory(cellData ->
                 new SimpleStringProperty(cellData.getValue().getComponent()));
         compCol.setPrefWidth(80);
+
+        // Add new watermark config column
+        TableColumn<WatermarkResult, String> configCol = new TableColumn<>("Watermark Config");
+        configCol.setCellValueFactory(cellData ->
+                new SimpleStringProperty(cellData.getValue().getWatermarkConfig()));
+        configCol.setPrefWidth(120);
 
         TableColumn<WatermarkResult, String> berCol = new TableColumn<>("BER");
         berCol.setCellValueFactory(cellData ->
@@ -1050,7 +1162,7 @@ public class WatermarkingDialog extends Stage {
         robustnessCol.setPrefWidth(100);
 
         // Add columns to table
-        table.getColumns().addAll(idCol, attackCol, paramsCol, methodCol, compCol,
+        table.getColumns().addAll(idCol, attackCol, paramsCol, methodCol, compCol, configCol,
                 berCol, ncCol, qualityCol, robustnessCol);
 
         // Add right-click context menu
@@ -1135,7 +1247,8 @@ public class WatermarkingDialog extends Stage {
                     content.append("Parameters: ").append(selectedResult.getAttackParameters()).append("\n\n");
                     content.append("Method: ").append(selectedResult.getMethod()).append("\n");
                     content.append("Component: ").append(selectedResult.getComponent()).append("\n");
-                    content.append("Parameter: ").append(selectedResult.getParameter()).append("\n\n");
+                    content.append("Parameter: ").append(selectedResult.getParameter()).append("\n");
+                    content.append("Watermark Config: ").append(selectedResult.getWatermarkConfig()).append("\n\n");
                     content.append("BER: ").append(String.format("%.6f", selectedResult.getBer())).append("\n");
                     content.append("NC: ").append(String.format("%.6f", selectedResult.getNc())).append("\n");
                     content.append("Quality Rating: ").append(selectedResult.getQualityRating()).append("\n");
@@ -1173,6 +1286,9 @@ public class WatermarkingDialog extends Stage {
                 watermarkWidthField.setText(String.valueOf(watermarkImage.getWidth()));
                 watermarkHeightField.setText(String.valueOf(watermarkImage.getHeight()));
 
+                // Update watermark config description
+                watermarkConfigDesc = "Custom " + file.getName();
+
                 // Update image view
                 updateImageViews();
 
@@ -1204,6 +1320,9 @@ public class WatermarkingDialog extends Stage {
                 watermarkWidthField.setText(String.valueOf(size));
                 watermarkHeightField.setText(String.valueOf(size));
 
+                // Update watermark config
+                watermarkConfigDesc = "Checkerboard " + size + "x" + size;
+
                 showStatus("Custom watermark created (" + size + "x" + size + ")", "success");
                 Logger.info("Custom watermark created with size " + size + "x" + size);
             } catch (NumberFormatException e) {
@@ -1217,6 +1336,7 @@ public class WatermarkingDialog extends Stage {
         createCustomWatermark(64, 64);
         watermarkWidthField.setText("64");
         watermarkHeightField.setText("64");
+        watermarkConfigDesc = "Default Checkerboard 64x64";
         Logger.info("Default watermark created (64x64)");
     }
 
@@ -1541,7 +1661,8 @@ public class WatermarkingDialog extends Stage {
                     nc,
                     0.0, // PSNR (not calculated here)
                     0.0, // WNR (not calculated here)
-                    paramDescription
+                    paramDescription,
+                    watermarkConfigDesc // Add watermark configuration description
             );
 
             // Add to table
