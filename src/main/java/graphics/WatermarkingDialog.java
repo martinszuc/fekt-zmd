@@ -1,10 +1,15 @@
 package graphics;
 
 import Jama.Matrix;
+import enums.AttackType;
 import enums.QualityType;
 import enums.WatermarkType;
+import javafx.scene.control.MenuItem;
+import javafx.stage.FileChooser;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleStringProperty;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
@@ -14,6 +19,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
 import javafx.scene.control.*;
+import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
@@ -24,10 +30,12 @@ import javafx.stage.Modality;
 import javafx.stage.Stage;
 import jpeg.Process;
 import utils.Logger;
-import watermarking.attacks.WatermarkAttacks;
+import watermarking.attacks.AbstractWatermarkAttack;
+import watermarking.attacks.WatermarkAttackFactory;
 import watermarking.core.AbstractWatermarking;
 import watermarking.core.WatermarkEvaluation;
 import watermarking.core.WatermarkResult;
+import watermarking.core.WatermarkTestReport;
 import watermarking.core.WatermarkingFactory;
 
 import javax.imageio.ImageIO;
@@ -38,7 +46,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Enhanced dialog for watermarking operations with improved attack simulation UI.
@@ -47,36 +57,6 @@ import java.util.List;
  * against various attacks.
  */
 public class WatermarkingDialog extends Stage {
-
-    // Enumeration for attack types
-    private enum AttackType {
-        JPEG_COMPRESSION("JPEG Compression", "Applies JPEG compression with specified quality"),
-        JPEG_COMPRESSION_INTERNAL("Internal JPEG Compression", "Uses application's compression pipeline"),
-        PNG_COMPRESSION("PNG Compression", "Applies PNG compression with specified level"),
-        ROTATION_45("Rotation 45°", "Rotates image by 45 degrees"),
-        ROTATION_90("Rotation 90°", "Rotates image by 90 degrees"),
-        RESIZE_75("Resize 75%", "Resizes image to 75% and back"),
-        RESIZE_50("Resize 50%", "Resizes image to 50% and back"),
-        MIRRORING("Mirroring", "Flips image horizontally"),
-        CROPPING("Cropping", "Crops image edges and resizes back");
-
-        private final String displayName;
-        private final String description;
-
-        AttackType(String displayName, String description) {
-            this.displayName = displayName;
-            this.description = description;
-        }
-
-        @Override
-        public String toString() {
-            return displayName;
-        }
-
-        public String getDescription() {
-            return description;
-        }
-    }
 
     // Status label for notifications
     private Label statusLabel;
@@ -103,6 +83,11 @@ public class WatermarkingDialog extends Stage {
     private TextField keyTextField;
     private TextField watermarkWidthField;
     private TextField watermarkHeightField;
+
+    // UI components for attacks
+    private ComboBox<AttackType> attackTypeCombo;
+    private VBox attackParametersBox;
+    private Map<String, Control> attackParameterControls = new HashMap<>();
 
     // UI components for images
     private ImageView originalImageView;
@@ -143,7 +128,7 @@ public class WatermarkingDialog extends Stage {
         initModality(Modality.APPLICATION_MODAL);
         initOwner(parentStage);
         setTitle("Image Watermarking");
-        setMinWidth(1000);
+        setMinWidth(1200);
         setMinHeight(900);
 
         // Create the UI
@@ -285,6 +270,10 @@ public class WatermarkingDialog extends Stage {
         evaluateButton.setMaxWidth(Double.MAX_VALUE);
         evaluateButton.setOnAction(e -> evaluateWatermark());
 
+        Button exportReportButton = new Button("Export Test Report");
+        exportReportButton.setMaxWidth(Double.MAX_VALUE);
+        exportReportButton.setOnAction(e -> exportTestReport());
+
         // Add everything to the watermark control panel
         watermarkControlPanel.getChildren().addAll(
                 methodLabel, methodComboBox,
@@ -299,7 +288,8 @@ public class WatermarkingDialog extends Stage {
                 new Separator(),
                 embedButton,
                 extractButton,
-                evaluateButton
+                evaluateButton,
+                exportReportButton
         );
 
         return watermarkControlPanel;
@@ -405,31 +395,6 @@ public class WatermarkingDialog extends Stage {
         strengthSpinner.setPrefWidth(120);
         VBox strengthBox = new VBox(5, strengthLabel, strengthSpinner);
 
-        // Separator before visibility factor
-        Separator visibilitySeparator = new Separator(Orientation.HORIZONTAL);
-        visibilitySeparator.setPadding(new Insets(5, 0, 5, 0));
-
-        // Visibility factor slider (0-1 range)
-        Label visibilityLabel = new Label("Watermark Visibility Factor:");
-        Slider visibilitySlider = new Slider(0.0, 1.0, 0.5);
-        visibilitySlider.setShowTickLabels(true);
-        visibilitySlider.setShowTickMarks(true);
-        visibilitySlider.setMajorTickUnit(0.25);
-        visibilitySlider.setBlockIncrement(0.1);
-
-        // Text field to display current value
-        TextField visibilityValueField = new TextField(String.format("%.2f", visibilitySlider.getValue()));
-        visibilityValueField.setPrefWidth(60);
-        visibilityValueField.setEditable(false);
-
-        // Update text field when slider value changes
-        visibilitySlider.valueProperty().addListener((observable, oldValue, newValue) -> {
-            visibilityValueField.setText(String.format("%.2f", newValue.doubleValue()));
-        });
-
-        HBox visibilityValueBox = new HBox(10, visibilitySlider, visibilityValueField);
-        VBox visibilityBox = new VBox(5, visibilityLabel, visibilityValueBox);
-
         // Add to options
         options.getChildren().addAll(
                 blockSizeBox,
@@ -439,9 +404,7 @@ public class WatermarkingDialog extends Stage {
                 coefSpacer,
                 coef2Box,
                 strengthSeparator,
-                strengthBox,
-                visibilitySeparator,
-                visibilityBox
+                strengthBox
         );
 
         return options;
@@ -560,7 +523,7 @@ public class WatermarkingDialog extends Stage {
     }
 
     /**
-     * Creates the attack simulation panel with improved layout
+     * Creates the attack simulation panel with improved layout and parameter handling
      */
     private VBox createAttackControls() {
         VBox attackBox = new VBox(16);
@@ -572,7 +535,7 @@ public class WatermarkingDialog extends Stage {
 
         // ComboBox for selecting attack type
         Label attackTypeLabel = new Label("Select Attack Type:");
-        ComboBox<AttackType> attackTypeCombo = new ComboBox<>();
+        attackTypeCombo = new ComboBox<>();
         attackTypeCombo.getItems().addAll(AttackType.values());
         attackTypeCombo.getSelectionModel().select(AttackType.JPEG_COMPRESSION);
         attackTypeCombo.setMaxWidth(Double.MAX_VALUE);
@@ -588,6 +551,7 @@ public class WatermarkingDialog extends Stage {
         attackTypeCombo.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal != null) {
                 descriptionLabel.setText(newVal.getDescription());
+                updateAttackParameters();
             }
         });
 
@@ -599,47 +563,12 @@ public class WatermarkingDialog extends Stage {
         Separator parametersSeparator = new Separator(Orientation.HORIZONTAL);
         parametersSeparator.setPadding(new Insets(5, 0, 5, 0));
 
-        // Parameter controls
-        VBox parameterBox = new VBox(15);
-        parameterBox.setPadding(new Insets(5, 0, 10, 0));
+        // Parameter controls container
+        attackParametersBox = new VBox(15);
+        attackParametersBox.setPadding(new Insets(5, 0, 10, 0));
 
-        // JPEG quality parameter - vertical layout
-        Label jpegQualityLabel = new Label("JPEG Quality (1-100):");
-        Spinner<Integer> jpegQualitySpinner = new Spinner<>(1, 100, 75);
-        jpegQualitySpinner.setEditable(true);
-        jpegQualitySpinner.setMaxWidth(120);
-        VBox jpegQualityBox = new VBox(5, jpegQualityLabel, jpegQualitySpinner);
-
-        // Small separator
-        Separator jpegPngSeparator = new Separator(Orientation.HORIZONTAL);
-        jpegPngSeparator.setPadding(new Insets(2, 0, 2, 0));
-
-        // PNG compression level - vertical layout
-        Label pngLevelLabel = new Label("PNG Compression (1-9):");
-        Spinner<Integer> pngLevelSpinner = new Spinner<>(1, 9, 5);
-        pngLevelSpinner.setEditable(true);
-        pngLevelSpinner.setMaxWidth(120);
-        VBox pngLevelBox = new VBox(5, pngLevelLabel, pngLevelSpinner);
-
-        // Small separator
-        Separator pngCropSeparator = new Separator(Orientation.HORIZONTAL);
-        pngCropSeparator.setPadding(new Insets(2, 0, 2, 0));
-
-        // Crop percentage - vertical layout
-        Label cropPercentLabel = new Label("Crop Percentage (0.0-0.5):");
-        Spinner<Double> cropPercentSpinner = new Spinner<>(0.0, 0.5, 0.2, 0.05);
-        cropPercentSpinner.setEditable(true);
-        cropPercentSpinner.setMaxWidth(120);
-        VBox cropPercentBox = new VBox(5, cropPercentLabel, cropPercentSpinner);
-
-        // Add parameter controls to parameter box with separators
-        parameterBox.getChildren().addAll(
-                jpegQualityBox,
-                jpegPngSeparator,
-                pngLevelBox,
-                pngCropSeparator,
-                cropPercentBox
-        );
+        // Create initial parameter controls
+        updateAttackParameters();
 
         // Apply attack button
         Button applyAttackButton = new Button("Apply Attack");
@@ -654,50 +583,21 @@ public class WatermarkingDialog extends Stage {
                 return;
             }
 
+            // Get the selected attack
+            AttackType selectedAttackType = attackTypeCombo.getValue();
+            AbstractWatermarkAttack attack = WatermarkAttackFactory.getAttack(selectedAttackType);
+
             // Get current RGB image
             BufferedImage currentImage = watermarkedProcess.getRGBImage();
-            BufferedImage attackedImage = null;
 
-            AttackType selectedAttack = attackTypeCombo.getValue();
-            switch (selectedAttack) {
-                case JPEG_COMPRESSION:
-                    attackedImage = WatermarkAttacks.jpegCompressionAttack(currentImage, jpegQualitySpinner.getValue());
-                    break;
+            // Gather parameters from UI
+            Map<String, Object> attackParams = getAttackParameters(selectedAttackType);
 
-                case JPEG_COMPRESSION_INTERNAL:
-                    attackedImage = WatermarkAttacks.jpegCompressionAttackInternal(currentImage, jpegQualitySpinner.getValue());
-                    break;
+            try {
+                // Apply the attack
+                showStatus("Applying attack: " + selectedAttackType.getDisplayName(), "info");
+                BufferedImage attackedImage = attack.apply(currentImage, attackParams);
 
-                case PNG_COMPRESSION:
-                    attackedImage = WatermarkAttacks.pngCompressionAttack(currentImage, pngLevelSpinner.getValue());
-                    break;
-
-                case ROTATION_45:
-                    attackedImage = WatermarkAttacks.rotationAttack(currentImage, 45);
-                    break;
-
-                case ROTATION_90:
-                    attackedImage = WatermarkAttacks.rotationAttack(currentImage, 90);
-                    break;
-
-                case RESIZE_75:
-                    attackedImage = WatermarkAttacks.resizeAttack(currentImage, 0.75);
-                    break;
-
-                case RESIZE_50:
-                    attackedImage = WatermarkAttacks.resizeAttack(currentImage, 0.50);
-                    break;
-
-                case MIRRORING:
-                    attackedImage = WatermarkAttacks.mirroringAttack(currentImage);
-                    break;
-
-                case CROPPING:
-                    attackedImage = WatermarkAttacks.croppingAttack(currentImage, cropPercentSpinner.getValue());
-                    break;
-            }
-
-            if (attackedImage != null) {
                 // Create a new process with the attacked image
                 watermarkedProcess = new Process(attackedImage);
 
@@ -705,7 +605,10 @@ public class WatermarkingDialog extends Stage {
                 updateImageViews();
 
                 // Show success message
-                showStatus("Attack applied: " + selectedAttack, "success");
+                showStatus("Attack applied: " + selectedAttackType.getDisplayName(), "success");
+            } catch (Exception ex) {
+                Logger.error("Error applying attack: " + ex.getMessage());
+                showStatus("Error applying attack: " + ex.getMessage(), "error");
             }
         });
 
@@ -720,11 +623,191 @@ public class WatermarkingDialog extends Stage {
                 descriptionLabel,
                 mainSeparator,
                 parametersHeaderLabel,
-                parameterBox,
+                parametersSeparator,
+                attackParametersBox,
                 applyAttackButton
         );
 
         return attackBox;
+    }
+
+    /**
+     * Updates the attack parameter controls based on the selected attack type.
+     */
+    private void updateAttackParameters() {
+        // Clear existing controls
+        attackParametersBox.getChildren().clear();
+        attackParameterControls.clear();
+
+        // Get the selected attack type
+        AttackType selectedAttackType = attackTypeCombo.getValue();
+        if (selectedAttackType == null) {
+            return;
+        }
+
+        // Get the attack instance
+        AbstractWatermarkAttack attack = WatermarkAttackFactory.getAttack(selectedAttackType);
+
+        // Get default parameters
+        Map<String, Object> defaultParams = attack.getDefaultParameters();
+
+        // Create controls for each parameter
+        for (Map.Entry<String, Object> param : defaultParams.entrySet()) {
+            String paramName = param.getKey();
+            Object paramValue = param.getValue();
+
+            // Create parameter label with proper capitalization
+            String displayName = paramName.substring(0, 1).toUpperCase() + paramName.substring(1);
+            Label paramLabel = new Label(displayName + ":");
+
+            // Create appropriate control based on parameter type
+            Control paramControl = null;
+
+            if (paramValue instanceof Number) {
+                // Numeric parameter (create spinner)
+                if (paramValue instanceof Integer) {
+                    // Integer parameter
+                    int value = (Integer) paramValue;
+                    Spinner<Integer> spinner;
+
+                    // Set appropriate range based on parameter name
+                    if (paramName.contains("radius")) {
+                        spinner = new Spinner<>(1, 5, value);
+                    } else if (paramName.contains("level")) {
+                        spinner = new Spinner<>(1, 9, value);
+                    } else if (paramName.contains("quality")) {
+                        spinner = new Spinner<>(1, 100, value);
+                    } else {
+                        spinner = new Spinner<>(0, 100, value);
+                    }
+
+                    spinner.setEditable(true);
+                    spinner.setPrefWidth(120);
+                    paramControl = spinner;
+
+                } else if (paramValue instanceof Double || paramValue instanceof Float) {
+                    // Double/Float parameter
+                    double value = ((Number) paramValue).doubleValue();
+                    Spinner<Double> spinner;
+
+                    // Set appropriate range based on parameter name
+                    if (paramName.contains("percentage")) {
+                        spinner = new Spinner<>(0.0, 0.5, value, 0.05);
+                    } else if (paramName.contains("scale")) {
+                        spinner = new Spinner<>(0.1, 1.0, value, 0.05);
+                    } else if (paramName.contains("amount")) {
+                        spinner = new Spinner<>(0.0, 2.0, value, 0.1);
+                    } else if (paramName.contains("stddev")) {
+                        spinner = new Spinner<>(0.0, 50.0, value, 1.0);
+                    } else {
+                        spinner = new Spinner<>(0.0, 100.0, value, 1.0);
+                    }
+
+                    spinner.setEditable(true);
+                    spinner.setPrefWidth(120);
+                    paramControl = spinner;
+                }
+
+            } else if (paramValue instanceof Boolean) {
+                // Boolean parameter (create checkbox)
+                boolean value = (Boolean) paramValue;
+                CheckBox checkBox = new CheckBox();
+                checkBox.setSelected(value);
+                paramControl = checkBox;
+
+            } else if (paramValue instanceof String) {
+                // String parameter (create combobox or text field)
+                String value = (String) paramValue;
+
+                if (paramName.contains("direction")) {
+                    // For direction parameters, create a combo box
+                    ComboBox<String> comboBox = new ComboBox<>();
+                    comboBox.getItems().addAll("horizontal", "vertical");
+                    comboBox.setValue(value);
+                    comboBox.setMaxWidth(Double.MAX_VALUE);
+                    paramControl = comboBox;
+                } else {
+                    // Generic string parameter
+                    TextField textField = new TextField(value);
+                    paramControl = textField;
+                }
+            }
+
+            // If we created a control, add it to the UI
+            if (paramControl != null) {
+                // Store control for later access
+                attackParameterControls.put(paramName, paramControl);
+
+                // Create layout
+                HBox paramBox = new HBox(10, paramLabel, paramControl);
+                paramBox.setAlignment(Pos.CENTER_LEFT);
+                HBox.setHgrow(paramControl, Priority.ALWAYS);
+
+                // Add to container
+                attackParametersBox.getChildren().add(paramBox);
+            }
+        }
+
+        // If no parameters, show a message
+        if (attackParametersBox.getChildren().isEmpty()) {
+            Label noParamsLabel = new Label("No parameters for this attack");
+            noParamsLabel.setStyle("-fx-font-style: italic;");
+            attackParametersBox.getChildren().add(noParamsLabel);
+        }
+    }
+
+    /**
+     * Gets the current attack parameters from the UI controls.
+     *
+     * @param attackType The selected attack type
+     * @return Map of parameter names to values
+     */
+    private Map<String, Object> getAttackParameters(AttackType attackType) {
+        Map<String, Object> params = new HashMap<>();
+
+        // Get the default parameters to know the types
+        AbstractWatermarkAttack attack = WatermarkAttackFactory.getAttack(attackType);
+        Map<String, Object> defaultParams = attack.getDefaultParameters();
+
+        // Populate parameters from UI controls
+        for (Map.Entry<String, Object> param : defaultParams.entrySet()) {
+            String paramName = param.getKey();
+            Object defaultValue = param.getValue();
+            Control control = attackParameterControls.get(paramName);
+
+            if (control != null) {
+                if (defaultValue instanceof Integer && control instanceof Spinner) {
+                    @SuppressWarnings("unchecked")
+                    Spinner<Integer> spinner = (Spinner<Integer>) control;
+                    params.put(paramName, spinner.getValue());
+
+                } else if ((defaultValue instanceof Double || defaultValue instanceof Float) &&
+                        control instanceof Spinner) {
+                    @SuppressWarnings("unchecked")
+                    Spinner<Double> spinner = (Spinner<Double>) control;
+                    params.put(paramName, spinner.getValue());
+
+                } else if (defaultValue instanceof Boolean && control instanceof CheckBox) {
+                    CheckBox checkBox = (CheckBox) control;
+                    params.put(paramName, checkBox.isSelected());
+
+                } else if (defaultValue instanceof String) {
+                    if (control instanceof ComboBox) {
+                        @SuppressWarnings("unchecked")
+                        ComboBox<String> comboBox = (ComboBox<String>) control;
+                        params.put(paramName, comboBox.getValue());
+                    } else if (control instanceof TextField) {
+                        TextField textField = (TextField) control;
+                        params.put(paramName, textField.getText());
+                    }
+                }
+            } else {
+                // Fall back to default value if no control exists
+                params.put(paramName, defaultValue);
+            }
+        }
+
+        return params;
     }
 
     /**
@@ -740,48 +823,243 @@ public class WatermarkingDialog extends Stage {
         TableColumn<WatermarkResult, Integer> idCol = new TableColumn<>("Test #");
         idCol.setCellValueFactory(cellData ->
                 new SimpleIntegerProperty(cellData.getValue().getTestId()).asObject());
+        idCol.setPrefWidth(50);
 
         TableColumn<WatermarkResult, String> attackCol = new TableColumn<>("Attack");
         attackCol.setCellValueFactory(cellData ->
                 new SimpleStringProperty(cellData.getValue().getAttackName()));
+        attackCol.setPrefWidth(120);
 
         TableColumn<WatermarkResult, String> paramsCol = new TableColumn<>("Parameters");
         paramsCol.setCellValueFactory(cellData ->
                 new SimpleStringProperty(cellData.getValue().getAttackParameters()));
+        paramsCol.setPrefWidth(100);
 
         TableColumn<WatermarkResult, String> methodCol = new TableColumn<>("Method");
         methodCol.setCellValueFactory(cellData ->
                 new SimpleStringProperty(cellData.getValue().getMethod()));
+        methodCol.setPrefWidth(80);
 
         TableColumn<WatermarkResult, String> compCol = new TableColumn<>("Component");
         compCol.setCellValueFactory(cellData ->
                 new SimpleStringProperty(cellData.getValue().getComponent()));
+        compCol.setPrefWidth(80);
 
         TableColumn<WatermarkResult, String> berCol = new TableColumn<>("BER");
         berCol.setCellValueFactory(cellData ->
                 new SimpleStringProperty(String.format("%.4f", cellData.getValue().getBer())));
+        berCol.setPrefWidth(60);
+
+        // Set cell factory to color cells based on BER value
+        berCol.setCellFactory(column -> new TableCell<WatermarkResult, String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+
+                if (item == null || empty) {
+                    setText(null);
+                    setStyle("");
+                } else {
+                    setText(item);
+                    try {
+                        double ber = Double.parseDouble(item);
+                        if (ber < 0.05) {
+                            setStyle("-fx-background-color: lightgreen;");
+                        } else if (ber < 0.15) {
+                            setStyle("-fx-background-color: lightyellow;");
+                        } else if (ber < 0.30) {
+                            setStyle("-fx-background-color: #FFCC80;"); // Light orange
+                        } else {
+                            setStyle("-fx-background-color: #FFCDD2;"); // Light red
+                        }
+                    } catch (NumberFormatException e) {
+                        setStyle("");
+                    }
+                }
+            }
+        });
 
         TableColumn<WatermarkResult, String> ncCol = new TableColumn<>("NC");
         ncCol.setCellValueFactory(cellData ->
                 new SimpleStringProperty(String.format("%.4f", cellData.getValue().getNc())));
+        ncCol.setPrefWidth(60);
+
+        // Set cell factory to color cells based on NC value
+        ncCol.setCellFactory(column -> new TableCell<WatermarkResult, String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+
+                if (item == null || empty) {
+                    setText(null);
+                    setStyle("");
+                } else {
+                    setText(item);
+                    try {
+                        double nc = Double.parseDouble(item);
+                        if (nc > 0.95) {
+                            setStyle("-fx-background-color: lightgreen;");
+                        } else if (nc > 0.85) {
+                            setStyle("-fx-background-color: lightyellow;");
+                        } else if (nc > 0.75) {
+                            setStyle("-fx-background-color: #FFCC80;"); // Light orange
+                        } else {
+                            setStyle("-fx-background-color: #FFCDD2;"); // Light red
+                        }
+                    } catch (NumberFormatException e) {
+                        setStyle("");
+                    }
+                }
+            }
+        });
 
         // Add a quality rating column
         TableColumn<WatermarkResult, String> qualityCol = new TableColumn<>("Quality");
         qualityCol.setCellValueFactory(cellData ->
                 new SimpleStringProperty(cellData.getValue().getQualityRating()));
+        qualityCol.setPrefWidth(80);
+
+        // Color code quality ratings
+        qualityCol.setCellFactory(column -> new TableCell<WatermarkResult, String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+
+                if (item == null || empty) {
+                    setText(null);
+                    setStyle("");
+                } else {
+                    setText(item);
+                    switch (item) {
+                        case "Excellent":
+                            setStyle("-fx-background-color: #C8E6C9;"); // Light green
+                            break;
+                        case "Very Good":
+                            setStyle("-fx-background-color: #DCEDC8;"); // Lighter green
+                            break;
+                        case "Good":
+                            setStyle("-fx-background-color: #FFF9C4;"); // Light yellow
+                            break;
+                        case "Fair":
+                            setStyle("-fx-background-color: #FFE0B2;"); // Light orange
+                            break;
+                        case "Poor":
+                            setStyle("-fx-background-color: #FFCCBC;"); // Light red-orange
+                            break;
+                        case "Failed":
+                            setStyle("-fx-background-color: #FFCDD2;"); // Light red
+                            break;
+                        default:
+                            setStyle("");
+                            break;
+                    }
+                }
+            }
+        });
 
         // Add a robustness rating column
         TableColumn<WatermarkResult, String> robustnessCol = new TableColumn<>("Robustness");
         robustnessCol.setCellValueFactory(cellData ->
                 new SimpleStringProperty(cellData.getValue().getRobustnessLevel()));
+        robustnessCol.setPrefWidth(100);
 
         // Add columns to table
         table.getColumns().addAll(idCol, attackCol, paramsCol, methodCol, compCol,
                 berCol, ncCol, qualityCol, robustnessCol);
 
-        // Set horizontal scroll policy to show all columns
-        ScrollPane scrollPane = new ScrollPane(table);
-        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        // Add right-click context menu
+        ContextMenu contextMenu = new ContextMenu();
+
+        MenuItem deleteItem = new MenuItem("Delete Selected");
+        deleteItem.setOnAction(e -> {
+            WatermarkResult selectedResult = table.getSelectionModel().getSelectedItem();
+            if (selectedResult != null) {
+                results.remove(selectedResult);
+                table.getItems().remove(selectedResult);
+            }
+        });
+
+        MenuItem deleteAllItem = new MenuItem("Delete All");
+        deleteAllItem.setOnAction(e -> {
+            Alert confirmation = new Alert(Alert.AlertType.CONFIRMATION,
+                    "Are you sure you want to delete all test results?",
+                    ButtonType.YES, ButtonType.NO);
+            confirmation.setTitle("Confirm Delete All");
+            confirmation.setHeaderText("Delete All Test Results");
+            confirmation.showAndWait()
+                    .filter(response -> response == ButtonType.YES)
+                    .ifPresent(response -> {
+                        results.clear();
+                        table.getItems().clear();
+                    });
+        });
+
+        MenuItem repeatAttackItem = new MenuItem("Repeat Attack");
+        repeatAttackItem.setOnAction(e -> {
+            WatermarkResult selectedResult = table.getSelectionModel().getSelectedItem();
+            if (selectedResult != null && watermarkedProcess != null) {
+                // Set attack type in the UI
+                AttackType attackType = selectedResult.getAttackType();
+                attackTypeCombo.setValue(attackType);
+
+                // Scroll to ensure the attack type is visible
+                showStatus("Attack type set to: " + attackType.getDisplayName() +
+                        ". Click 'Apply Attack' to repeat", "info");
+            }
+        });
+
+        MenuItem setWatermarkingItem = new MenuItem("Set Watermarking Method");
+        setWatermarkingItem.setOnAction(e -> {
+            WatermarkResult selectedResult = table.getSelectionModel().getSelectedItem();
+            if (selectedResult != null) {
+                // Set method in the UI
+                methodComboBox.setValue(selectedResult.getWatermarkType());
+
+                // Set component
+                try {
+                    QualityType component = QualityType.valueOf(selectedResult.getComponent());
+                    componentComboBox.setValue(component);
+                } catch (IllegalArgumentException ex) {
+                    // Component not found, ignore
+                }
+
+                showStatus("Watermarking method set to: " + selectedResult.getMethod(), "info");
+            }
+        });
+
+        contextMenu.getItems().addAll(deleteItem, deleteAllItem, new SeparatorMenuItem(),
+                repeatAttackItem, setWatermarkingItem);
+
+        table.setContextMenu(contextMenu);
+
+        // Double-click handler to repeat attack
+        table.setOnMouseClicked(event -> {
+            if (event.getClickCount() == 2) {
+                WatermarkResult selectedResult = table.getSelectionModel().getSelectedItem();
+                if (selectedResult != null) {
+                    // Show details dialog
+                    Alert details = new Alert(Alert.AlertType.INFORMATION);
+                    details.setTitle("Test Result Details");
+                    details.setHeaderText("Test #" + selectedResult.getTestId() + " - " + selectedResult.getAttackName());
+
+                    // Create formatted content
+                    StringBuilder content = new StringBuilder();
+                    content.append("Time: ").append(selectedResult.getTimestamp()).append("\n\n");
+                    content.append("Attack: ").append(selectedResult.getAttackName()).append("\n");
+                    content.append("Parameters: ").append(selectedResult.getAttackParameters()).append("\n\n");
+                    content.append("Method: ").append(selectedResult.getMethod()).append("\n");
+                    content.append("Component: ").append(selectedResult.getComponent()).append("\n");
+                    content.append("Parameter: ").append(selectedResult.getParameter()).append("\n\n");
+                    content.append("BER: ").append(String.format("%.6f", selectedResult.getBer())).append("\n");
+                    content.append("NC: ").append(String.format("%.6f", selectedResult.getNc())).append("\n");
+                    content.append("Quality Rating: ").append(selectedResult.getQualityRating()).append("\n");
+                    content.append("Robustness: ").append(selectedResult.getRobustnessLevel()).append("\n");
+
+                    details.setContentText(content.toString());
+                    details.showAndWait();
+                }
+            }
+        });
 
         return table;
     }
@@ -926,6 +1204,8 @@ public class WatermarkingDialog extends Stage {
                 case CR:
                     componentMatrix = originalProcess.getCr();
                     break;
+                default:
+                    throw new IllegalStateException("Unsupported component: " + component);
             }
 
             if (componentMatrix == null) {
@@ -1119,23 +1399,33 @@ public class WatermarkingDialog extends Stage {
             double nc = WatermarkEvaluation.calculateNC(embeddedWatermark, extractedWatermark);
             ncLabel.setText(String.format("%.4f", nc));
 
-            // Add to results table
-            String attackName = "None";
-            WatermarkType method = methodComboBox.getValue();
+            // Get attack information
+            AttackType attackType = attackTypeCombo.getValue();
+            Map<String, Object> attackParams = getAttackParameters(attackType);
+            AbstractWatermarkAttack attack = WatermarkAttackFactory.getAttack(attackType);
+            String paramDescription = attack.getParametersDescription(attackParams);
 
-            // Create a new result and add to table
+            // Create a new result
             WatermarkResult result = new WatermarkResult(
-                    attackName,
-                    method.toString(),
+                    attackType,
+                    methodComboBox.getValue(),
                     componentComboBox.getValue().toString(),
-                    (method == WatermarkType.LSB) ? String.valueOf(bitPlaneSpinner.getValue()) :
+                    (methodComboBox.getValue() == WatermarkType.LSB) ?
+                            String.valueOf(bitPlaneSpinner.getValue()) :
                             String.valueOf(blockSizeSpinner.getValue()),
                     ber,
-                    nc
+                    nc,
+                    0.0, // PSNR (not calculated here)
+                    0.0, // WNR (not calculated here)
+                    paramDescription
             );
 
+            // Add to table
             results.add(result);
-            resultsTable.getItems().add(result);
+
+            // Refresh table with sorted data
+            ObservableList<WatermarkResult> items = FXCollections.observableArrayList(results);
+            resultsTable.setItems(items);
             resultsTable.refresh();
 
             showStatus("Evaluation complete: BER=" + String.format("%.4f", ber) + ", NC=" + String.format("%.4f", nc), "success");
@@ -1143,6 +1433,47 @@ public class WatermarkingDialog extends Stage {
         } catch (Exception e) {
             Logger.error("Error evaluating watermark: " + e.getMessage());
             showStatus("Error evaluating watermark: " + e.getMessage(), "error");
+        }
+    }
+
+    /**
+     * Exports test results to an Excel report or CSV file.
+     */
+    private void exportTestReport() {
+        if (results.isEmpty()) {
+            showStatus("No test results to export", "error");
+            return;
+        }
+
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Save Watermark Test Report");
+        fileChooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Excel Files (*.xlsx)", "*.xlsx"),
+                new FileChooser.ExtensionFilter("CSV Files (*.csv)", "*.csv")
+        );
+        fileChooser.setInitialFileName("watermark_test_report.xlsx");
+
+        File outputFile = fileChooser.showSaveDialog(this);
+        if (outputFile != null) {
+            try {
+                String filePath = outputFile.getAbsolutePath();
+                if (filePath.toLowerCase().endsWith(".csv")) {
+                    // Export as CSV
+                    WatermarkTestReport.exportToCsv(results, filePath);
+                } else {
+                    // Export as Excel
+                    if (!filePath.toLowerCase().endsWith(".xlsx")) {
+                        filePath += ".xlsx";
+                    }
+                    WatermarkTestReport.generateReport(results, filePath);
+                }
+
+                showStatus("Test report exported successfully to: " + filePath, "success");
+
+            } catch (IOException e) {
+                Logger.error("Error exporting test report: " + e.getMessage());
+                showStatus("Error exporting test report: " + e.getMessage(), "error");
+            }
         }
     }
 
