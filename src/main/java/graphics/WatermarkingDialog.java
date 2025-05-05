@@ -956,8 +956,11 @@ public class WatermarkingDialog extends Stage {
                 // Use defaults if fields contain invalid values
             }
 
+            // Create a final array to store the dialog reference
+            final WatermarkConfigurationDialog[] dialogRef = new WatermarkConfigurationDialog[1];
+
             // Create and show the configuration dialog
-            WatermarkConfigurationDialog configDialog = new WatermarkConfigurationDialog(
+            WatermarkConfigurationDialog dialog = new WatermarkConfigurationDialog(
                     this, watermarkImage, width, height,
                     (newWatermark, newWidth, newHeight) -> {
                         // Handle selected watermark
@@ -967,9 +970,10 @@ public class WatermarkingDialog extends Stage {
 
                         // Update the configuration description based on the last selection
                         if (newWatermark != null) {
-                            // Determine the type of watermark that was created
-                            if (configDialog.getLastSelectedPreset() != null) {
-                                watermarkConfigDesc = configDialog.getLastSelectedPreset().toString();
+                            // Get the selected preset from the dialog
+                            WatermarkConfigurationDialog.WatermarkPreset selectedPreset = dialogRef[0].getLastSelectedPreset();
+                            if (selectedPreset != null) {
+                                watermarkConfigDesc = selectedPreset.toString();
                             } else {
                                 watermarkConfigDesc = "Custom " + newWidth + "x" + newHeight;
                             }
@@ -980,7 +984,10 @@ public class WatermarkingDialog extends Stage {
                     }
             );
 
-            configDialog.showAndWait();
+            // Store the dialog reference
+            dialogRef[0] = dialog;
+
+            dialog.showAndWait();
 
         } catch (Exception e) {
             Logger.error("Error opening watermark configuration dialog: " + e.getMessage());

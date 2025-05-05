@@ -47,6 +47,9 @@ public class WatermarkConfigurationDialog extends Stage {
     private TextField heightField;
     private ComboBox<String> presetSelector;
 
+    // Track the last selected preset
+    private WatermarkPreset lastSelectedPreset = WatermarkPreset.CHECKERBOARD;
+
     // Callback for when a watermark is selected
     private WatermarkSelectedCallback callback;
 
@@ -170,8 +173,7 @@ public class WatermarkConfigurationDialog extends Stage {
         presetSelector = new ComboBox<>(FXCollections.observableArrayList(
                 WatermarkPreset.CHECKERBOARD.toString(),
                 WatermarkPreset.BUT_FEEC.toString(),
-                WatermarkPreset.TRIANGLE.toString(),
-                WatermarkPreset.CUSTOM.toString()
+                WatermarkPreset.TRIANGLE.toString()
         ));
         presetSelector.setValue(WatermarkPreset.CHECKERBOARD.toString());
         presetSelector.setMaxWidth(Double.MAX_VALUE);
@@ -181,12 +183,14 @@ public class WatermarkConfigurationDialog extends Stage {
             String selected = presetSelector.getValue();
             if (selected.equals(WatermarkPreset.CHECKERBOARD.toString())) {
                 createCheckerboardWatermark();
+                lastSelectedPreset = WatermarkPreset.CHECKERBOARD;
             } else if (selected.equals(WatermarkPreset.BUT_FEEC.toString())) {
                 createButFeecWatermark();
+                lastSelectedPreset = WatermarkPreset.BUT_FEEC;
             } else if (selected.equals(WatermarkPreset.TRIANGLE.toString())) {
                 createTriangleWatermark();
+                lastSelectedPreset = WatermarkPreset.TRIANGLE;
             }
-            // CUSTOM doesn't create a new watermark, it's for importing
         });
 
         // Dimensions
@@ -276,6 +280,14 @@ public class WatermarkConfigurationDialog extends Stage {
         );
 
         return content;
+    }
+
+    /**
+     * Returns the last selected watermark preset
+     * @return The last selected preset
+     */
+    public WatermarkPreset getLastSelectedPreset() {
+        return lastSelectedPreset;
     }
 
     /**
@@ -372,6 +384,7 @@ public class WatermarkConfigurationDialog extends Stage {
 
             // Set selection to Checkerboard
             presetSelector.setValue(WatermarkPreset.CHECKERBOARD.toString());
+            lastSelectedPreset = WatermarkPreset.CHECKERBOARD;
 
         } catch (NumberFormatException e) {
             showAlert("Invalid Dimensions", "Please enter valid numbers for width and height.");
@@ -412,32 +425,48 @@ public class WatermarkConfigurationDialog extends Stage {
                 gc.fillText(letter, width/2, y);
             }
 
-            // Convert JavaFX canvas to BufferedImage
+            // Create a buffered image for the watermark
             BufferedImage watermark = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
 
-            // Save the canvas content to a PNG and then read it back
-            // (This is a workaround since we can't directly convert JavaFX Canvas to BufferedImage)
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-
             try {
-                javafx.embed.swing.SwingFXUtils.fromFXImage(canvas.snapshot(null, null), watermark);
+                // Try to use SwingFXUtils if available (requires JavaFX SDK with appropriate modules)
+                try {
+                    Class<?> swingFXUtilsClass = Class.forName("javafx.embed.swing.SwingFXUtils");
+                    java.lang.reflect.Method fromFXImageMethod = swingFXUtilsClass.getMethod("fromFXImage",
+                            javafx.scene.image.Image.class, BufferedImage.class);
+                    fromFXImageMethod.invoke(null, canvas.snapshot(null, null), watermark);
+                } catch (Exception e) {
+                    // Fallback method if SwingFXUtils isn't available
+                    Logger.warning("SwingFXUtils not available, using fallback method: " + e.getMessage());
+
+                    // Create the watermark manually
+                    Graphics2D g2d = watermark.createGraphics();
+                    g2d.setColor(java.awt.Color.WHITE);
+                    g2d.fillRect(0, 0, width, height);
+                    g2d.setColor(java.awt.Color.BLACK);
+
+                    java.awt.Font font = new java.awt.Font("Arial", java.awt.Font.BOLD, (int)fontSize);
+                    g2d.setFont(font);
+
+                    java.awt.FontMetrics metrics = g2d.getFontMetrics(font);
+                    for (int i = 0; i < text.length(); i++) {
+                        String letter = text.substring(i, i+1);
+                        int x = (width - metrics.stringWidth(letter)) / 2;
+                        int y = (int)(i * lineHeight + lineHeight * 0.75);
+                        g2d.drawString(letter, x, y);
+                    }
+                    g2d.dispose();
+                }
             } catch (Exception e) {
-                // If SwingFXUtils fails, use a fallback method
-                java.awt.Graphics2D g2d = watermark.createGraphics();
+                // If all conversion methods fail, create a simple text watermark
+                Logger.error("Error converting canvas to image: " + e.getMessage());
+                Graphics2D g2d = watermark.createGraphics();
                 g2d.setColor(java.awt.Color.WHITE);
                 g2d.fillRect(0, 0, width, height);
                 g2d.setColor(java.awt.Color.BLACK);
-
-                java.awt.Font font = new java.awt.Font("Arial", java.awt.Font.BOLD, (int)fontSize);
-                g2d.setFont(font);
-
-                java.awt.FontMetrics metrics = g2d.getFontMetrics(font);
-                for (int i = 0; i < text.length(); i++) {
-                    String letter = text.substring(i, i+1);
-                    int x = (width - metrics.stringWidth(letter)) / 2;
-                    int y = (int)(i * lineHeight + lineHeight * 0.75);
-                    g2d.drawString(letter, x, y);
-                }
+                g2d.setFont(new java.awt.Font("Arial", java.awt.Font.BOLD, 20));
+                g2d.drawString("BUT", width/2 - 20, height/3);
+                g2d.drawString("FEEC", width/2 - 25, 2*height/3);
                 g2d.dispose();
             }
 
@@ -446,6 +475,7 @@ public class WatermarkConfigurationDialog extends Stage {
 
             // Set selection to BUT FEEC
             presetSelector.setValue(WatermarkPreset.BUT_FEEC.toString());
+            lastSelectedPreset = WatermarkPreset.BUT_FEEC;
 
         } catch (NumberFormatException e) {
             showAlert("Invalid Dimensions", "Please enter valid numbers for width and height.");
@@ -480,6 +510,7 @@ public class WatermarkConfigurationDialog extends Stage {
 
             // Set selection to Triangle
             presetSelector.setValue(WatermarkPreset.TRIANGLE.toString());
+            lastSelectedPreset = WatermarkPreset.TRIANGLE;
 
         } catch (NumberFormatException e) {
             showAlert("Invalid Dimensions", "Please enter valid numbers for width and height.");
@@ -522,7 +553,7 @@ public class WatermarkConfigurationDialog extends Stage {
                 updatePreview(bwImage);
 
                 // Set selection to Custom
-                presetSelector.setValue(WatermarkPreset.CUSTOM.toString());
+                lastSelectedPreset = WatermarkPreset.CUSTOM;
 
                 Logger.info("Imported watermark: " + selectedFile.getName() + " (" + watermarkWidth + "x" + watermarkHeight + ")");
 
