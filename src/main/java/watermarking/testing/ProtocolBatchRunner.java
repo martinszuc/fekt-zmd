@@ -5,6 +5,7 @@ import enums.QualityType;
 import enums.WatermarkType;
 import utils.Logger;
 import watermarking.core.AbstractWatermarking;
+import watermarking.core.WatermarkingFactory;    // ← import the factory
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -35,172 +36,106 @@ public class ProtocolBatchRunner {
 
             // Load default test image and watermark
             BufferedImage testImage = ImageIO.read(new File("Images/Lenna.png"));
-            BufferedImage watermark = ImageIO.read(new File("test-watermarks/checkerboard.png"));
+            BufferedImage watermark   = ImageIO.read(new File("test-watermarks/checkerboard.png"));
 
             // Run all protocol-required tests
-
-            // 1. LSB Tests
             Logger.info("Running LSB Protocol Tests...");
             runLSBTests(testImage, watermark);
 
-            // 2. DCT Tests
             Logger.info("Running DCT Protocol Tests...");
             runDCTTests(testImage, watermark);
 
-            // 3. DWT Tests
             Logger.info("Running DWT Protocol Tests...");
             runDWTTests(testImage, watermark);
 
-            // 4. SVD Tests
             Logger.info("Running SVD Protocol Tests...");
             runSVDTests(testImage, watermark);
 
             Logger.info("All protocol tests completed. Results saved in protocol-results directory.");
-
         } catch (Exception e) {
             Logger.error("Error running protocol tests: " + e.getMessage());
             e.printStackTrace();
         }
     }
 
-    /**
-     * Creates test watermarks for the protocol tests
-     */
+    /** Creates test watermarks for the protocol tests */
     private static void createTestWatermarks() throws Exception {
-        // Create checkerboard pattern watermark (64x64)
         createCheckerboardWatermark(64, 64, "checkerboard.png");
     }
 
-    /**
-     * Creates a checkerboard pattern watermark
-     */
+    /** Creates a checkerboard pattern watermark */
     private static void createCheckerboardWatermark(int width, int height, String filename) throws Exception {
         File outputFile = new File("test-watermarks/" + filename);
+        if (outputFile.exists()) return;
 
-        // Only create if it doesn't exist
-        if (outputFile.exists()) {
-            return;
-        }
-
-        BufferedImage watermark = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-        java.awt.Graphics2D g2d = watermark.createGraphics();
-
-        // Fill with white
-        g2d.setColor(java.awt.Color.WHITE);
-        g2d.fillRect(0, 0, width, height);
-
-        // Draw black checkboard pattern
-        g2d.setColor(java.awt.Color.BLACK);
+        BufferedImage wm = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        java.awt.Graphics2D g = wm.createGraphics();
+        g.setColor(java.awt.Color.WHITE);
+        g.fillRect(0, 0, width, height);
+        g.setColor(java.awt.Color.BLACK);
 
         int squareSize = Math.max(8, width / 8);
         for (int y = 0; y < height; y += squareSize) {
             for (int x = 0; x < width; x += squareSize) {
                 if ((x / squareSize + y / squareSize) % 2 == 0) {
-                    g2d.fillRect(x, y, squareSize, squareSize);
+                    g.fillRect(x, y, squareSize, squareSize);
                 }
             }
         }
+        g.dispose();
 
-        g2d.dispose();
-
-        // Save watermark
-        ImageIO.write(watermark, "png", outputFile);
+        ImageIO.write(wm, "png", outputFile);
         Logger.info("Created checkerboard watermark: " + outputFile.getAbsolutePath());
     }
 
-    /**
-     * Runs all required LSB tests from the protocol
-     */
     private static void runLSBTests(BufferedImage testImage, BufferedImage watermark) throws Exception {
-        // Test bit planes: 1, 3, 5, 7
         int[] bitPlanes = {1, 3, 5, 7};
-
-        // Test with and without permutation
         boolean[] permutationOptions = {false, true};
-
-        for (int bitPlane : bitPlanes) {
-            for (boolean usePermutation : permutationOptions) {
-                String testName = String.format("LSB_BP%d_%s",
-                        bitPlane, usePermutation ? "WithPerm" : "NoPerm");
-
-                Object[] embedParams = {bitPlane, usePermutation, "watermark-key"};
-
-                // Run a watermarking test with all protocol attacks
-                runProtocolTest(testImage, watermark, WatermarkType.LSB, QualityType.Y,
-                        testName, embedParams);
+        for (int bp : bitPlanes) {
+            for (boolean perm : permutationOptions) {
+                String name = String.format("LSB_BP%d_%s", bp, perm ? "WithPerm" : "NoPerm");
+                Object[] params = {bp, perm, "watermark-key"};
+                runProtocolTest(testImage, watermark, WatermarkType.LSB, QualityType.Y, name, params);
             }
         }
     }
 
-    /**
-     * Runs all required DCT tests from the protocol
-     */
     private static void runDCTTests(BufferedImage testImage, BufferedImage watermark) throws Exception {
-        // Test coefficient pairs
-        int[][][] coeffPairs = {
-                {{3, 1}, {4, 1}},  // Pair 1
-                {{4, 3}, {5, 2}}   // Pair 2
+        int[][][] pairs = {
+                {{3,1},{4,1}},
+                {{4,3},{5,2}}
         };
-
-        // Test strength values
-        double[] strengthValues = {5.0, 10.0, 15.0};
-
-        // Block size (standard for DCT)
+        double[] strengths = {5.0, 10.0, 15.0};
         int blockSize = 8;
 
-        for (int[][] coeffPair : coeffPairs) {
-            for (double strength : strengthValues) {
-                String testName = String.format("DCT_C%d%d_%d%d_S%.0f",
-                        coeffPair[0][0], coeffPair[0][1],
-                        coeffPair[1][0], coeffPair[1][1], strength);
-
-                Object[] embedParams = {blockSize, coeffPair[0], coeffPair[1], strength};
-
-                // Run a watermarking test with all protocol attacks
-                runProtocolTest(testImage, watermark, WatermarkType.DCT, QualityType.Y,
-                        testName, embedParams);
+        for (int[][] p : pairs) {
+            for (double s : strengths) {
+                String name = String.format("DCT_C%d%d_%d%d_S%.0f",
+                        p[0][0], p[0][1], p[1][0], p[1][1], s);
+                Object[] params = {blockSize, p[0], p[1], s};
+                runProtocolTest(testImage, watermark, WatermarkType.DCT, QualityType.Y, name, params);
             }
         }
     }
 
-    /**
-     * Runs all required DWT tests from the protocol
-     */
     private static void runDWTTests(BufferedImage testImage, BufferedImage watermark) throws Exception {
-        // Test all subbands
-        String[] subbands = {"LL", "LH", "HL", "HH"};
-
-        // Test strength values
-        double[] strengthValues = {2.5, 5.0};
-
-        for (String subband : subbands) {
-            for (double strength : strengthValues) {
-                String testName = String.format("DWT_%s_S%.1f", subband, strength);
-
-                Object[] embedParams = {strength, subband};
-
-                // Run a watermarking test with all protocol attacks
-                runProtocolTest(testImage, watermark, WatermarkType.DWT, QualityType.Y,
-                        testName, embedParams);
+        String[] bands = {"LL","LH","HL","HH"};
+        double[] strengths = {2.5, 5.0};
+        for (String band : bands) {
+            for (double s : strengths) {
+                String name = String.format("DWT_%s_S%.1f", band, s);
+                Object[] params = {s, band};
+                runProtocolTest(testImage, watermark, WatermarkType.DWT, QualityType.Y, name, params);
             }
         }
     }
 
-    /**
-     * Runs all required SVD tests from the protocol
-     */
     private static void runSVDTests(BufferedImage testImage, BufferedImage watermark) throws Exception {
-        // Test alpha values
-        double[] alphaValues = {0.5, 1.0, 2.0, 5.0};
-
-        for (double alpha : alphaValues) {
-            String testName = String.format("SVD_A%.1f", alpha);
-
-            Object[] embedParams = {alpha};
-
-            // Run a watermarking test with all protocol attacks
-            runProtocolTest(testImage, watermark, WatermarkType.SVD, QualityType.Y,
-                    testName, embedParams);
+        double[] alphas = {0.5, 1.0, 2.0, 5.0};
+        for (double a : alphas) {
+            String name = String.format("SVD_A%.1f", a);
+            Object[] params = {a};
+            runProtocolTest(testImage, watermark, WatermarkType.SVD, QualityType.Y, name, params);
         }
     }
 
@@ -217,92 +152,61 @@ public class ProtocolBatchRunner {
 
         Logger.info("Running test: " + testName);
 
-        // Create a watermarking instance
-        AbstractWatermarking watermarking =
-                watermarking.core.WatermarkingFactory.createWatermarking(method);
+        // ← renamed local variable so it won't shadow the package
+        AbstractWatermarking wmInstance = WatermarkingFactory.createWatermarking(method);
 
-        // Create a process object with a copy of the test image
+        // Prepare image for embedding
         jpeg.Process process = new jpeg.Process(copyImage(testImage));
-
-        // Convert to YCbCr
         process.convertToYCbCr();
 
-        // Get component matrix for embedding
-        Jama.Matrix componentMatrix = null;
+        // pick the right channel
+        Jama.Matrix compMatrix;
         switch (component) {
-            case Y:
-                componentMatrix = process.getY();
-                break;
-            case CB:
-                componentMatrix = process.getCb();
-                break;
-            case CR:
-                componentMatrix = process.getCr();
-                break;
+            case Y  : compMatrix = process.getY();  break;
+            case CB : compMatrix = process.getCb(); break;
+            case CR : compMatrix = process.getCr(); break;
+            default : throw new IllegalStateException("Unknown component: " + component);
         }
 
-        // Embed watermark
-        Jama.Matrix watermarkedMatrix = watermarking.embed(componentMatrix, watermark, embedParams);
-
-        // Update component in process
+        // embed, save, then run attacks
+        Jama.Matrix watermarked = wmInstance.embed(compMatrix, watermark, embedParams);
         switch (component) {
-            case Y:
-                process.setY(watermarkedMatrix);
-                break;
-            case CB:
-                process.setCb(watermarkedMatrix);
-                break;
-            case CR:
-                process.setCr(watermarkedMatrix);
-                break;
+            case Y  : process.setY(watermarked);  break;
+            case CB : process.setCb(watermarked); break;
+            case CR : process.setCr(watermarked); break;
         }
-
-        // Convert back to RGB
         process.convertToRGB();
 
-        // Save watermarked image
-        String baseOutputPath = "protocol-results/" + testName;
-        ImageIO.write(process.getRGBImage(), "png", new File(baseOutputPath + "_watermarked.png"));
+        String basePath = "protocol-results/" + testName;
+        ImageIO.write(process.getRGBImage(), "png", new File(basePath + "_watermarked.png"));
 
-        // Run baseline test (no attack)
-        runAttack(AttackType.NONE, process, watermarking, component, watermark, embedParams,
-                baseOutputPath, testName);
+        // baseline (no attack)
+        runAttack(AttackType.NONE, process, wmInstance, component, watermark, embedParams, basePath, testName);
 
-        // JPEG attacks
-        float[] jpegQualities = {25.0f, 50.0f, 75.0f, 90.0f};
-        for (float quality : jpegQualities) {
-            runAttack(AttackType.JPEG_COMPRESSION, process, watermarking, component, watermark, embedParams,
-                    baseOutputPath, testName, quality);
+        // JPEG
+        for (float q : new float[]{25f, 50f, 75f, 90f}) {
+            runAttack(AttackType.JPEG_COMPRESSION, process, wmInstance, component, watermark, embedParams, basePath, testName, q);
         }
 
-        // PNG compression attacks
-        int[] pngLevels = {1, 5, 9};
-        for (int level : pngLevels) {
-            runAttack(AttackType.PNG_COMPRESSION, process, watermarking, component, watermark, embedParams,
-                    baseOutputPath, testName, level);
+        // PNG
+        for (int lvl : new int[]{1,5,9}) {
+            runAttack(AttackType.PNG_COMPRESSION, process, wmInstance, component, watermark, embedParams, basePath, testName, lvl);
         }
 
-        // Rotation attacks
-        runAttack(AttackType.ROTATION_45, process, watermarking, component, watermark, embedParams,
-                baseOutputPath, testName);
-        runAttack(AttackType.ROTATION_90, process, watermarking, component, watermark, embedParams,
-                baseOutputPath, testName);
+        // rotations
+        runAttack(AttackType.ROTATION_45, process, wmInstance, component, watermark, embedParams, basePath, testName);
+        runAttack(AttackType.ROTATION_90, process, wmInstance, component, watermark, embedParams, basePath, testName);
 
-        // Resize attacks
-        runAttack(AttackType.RESIZE_50, process, watermarking, component, watermark, embedParams,
-                baseOutputPath, testName);
-        runAttack(AttackType.RESIZE_75, process, watermarking, component, watermark, embedParams,
-                baseOutputPath, testName);
+        // resizes
+        runAttack(AttackType.RESIZE_50, process, wmInstance, component, watermark, embedParams, basePath, testName);
+        runAttack(AttackType.RESIZE_75, process, wmInstance, component, watermark, embedParams, basePath, testName);
 
-        // Mirroring attack
-        runAttack(AttackType.MIRRORING, process, watermarking, component, watermark, embedParams,
-                baseOutputPath, testName);
+        // mirror
+        runAttack(AttackType.MIRRORING, process, wmInstance, component, watermark, embedParams, basePath, testName);
 
-        // Cropping attacks
-        runAttack(AttackType.CROPPING, process, watermarking, component, watermark, embedParams,
-                baseOutputPath, testName, 0.1);
-        runAttack(AttackType.CROPPING, process, watermarking, component, watermark, embedParams,
-                baseOutputPath, testName, 0.2);
+        // cropping
+        runAttack(AttackType.CROPPING, process, wmInstance, component, watermark, embedParams, basePath, testName, 0.1);
+        runAttack(AttackType.CROPPING, process, wmInstance, component, watermark, embedParams, basePath, testName, 0.2);
 
         Logger.info("Completed test: " + testName);
     }
@@ -313,7 +217,7 @@ public class ProtocolBatchRunner {
     private static void runAttack(
             AttackType attackType,
             jpeg.Process watermarkedProcess,
-            watermarking.core.AbstractWatermarking watermarking,
+            AbstractWatermarking wmInstance,     // ← use the renamed instance
             QualityType component,
             BufferedImage originalWatermark,
             Object[] embedParams,
@@ -323,92 +227,59 @@ public class ProtocolBatchRunner {
 
         Logger.info("Applying attack: " + attackType.getDisplayName());
 
-        // Get the watermarked RGB image
-        BufferedImage watermarkedImage = copyImage(watermarkedProcess.getRGBImage());
-
-        // Apply attack
+        BufferedImage watermarkedImg = copyImage(watermarkedProcess.getRGBImage());
         watermarking.attacks.AbstractWatermarkAttack attack =
                 watermarking.attacks.WatermarkAttackFactory.getAttack(attackType);
 
-        Map<String, Object> attackParamsMap = new HashMap<>();
-
-        // Configure attack parameters
+        Map<String, Object> params = new HashMap<>();
         if (attackType == AttackType.JPEG_COMPRESSION && attackParams.length > 0) {
-            attackParamsMap.put("quality", attackParams[0]);
+            params.put("quality", attackParams[0]);
         } else if (attackType == AttackType.PNG_COMPRESSION && attackParams.length > 0) {
-            attackParamsMap.put("level", attackParams[0]);
+            params.put("level", attackParams[0]);
         } else if (attackType == AttackType.CROPPING && attackParams.length > 0) {
-            attackParamsMap.put("percentage", attackParams[0]);
+            params.put("percentage", attackParams[0]);
         }
 
-        // Apply attack
-        BufferedImage attackedImage = attack.apply(watermarkedImage, attackParamsMap);
+        BufferedImage attacked = attack.apply(watermarkedImg, params);
+        String desc = attack.getParametersDescription(params)
+                .replace(": ", "_").replace("%", "pct");
+        ImageIO.write(attacked, "png", new File(baseOutputPath + "_" + attackType.name() + "_" + desc + ".png"));
 
-        // Get attack parameters description
-        String attackDescription = attack.getParametersDescription(attackParamsMap);
-
-        // Save attacked image
-        String attackedImagePath = baseOutputPath + "_" +
-                attackType.name() + "_" + attackDescription.replace(": ", "_").replace("%", "pct") + ".png";
-        ImageIO.write(attackedImage, "png", new File(attackedImagePath));
-
-        // Create new process with attacked image
-        jpeg.Process attackedProcess = new jpeg.Process(attackedImage);
-
-        // Convert to YCbCr for extraction
-        attackedProcess.convertToYCbCr();
-
-        // Get component matrix for extraction
-        Jama.Matrix componentMatrix = null;
+        // extract
+        jpeg.Process attackedProc = new jpeg.Process(attacked);
+        attackedProc.convertToYCbCr();
+        Jama.Matrix compMatrix;
         switch (component) {
-            case Y:
-                componentMatrix = attackedProcess.getY();
-                break;
-            case CB:
-                componentMatrix = attackedProcess.getCb();
-                break;
-            case CR:
-                componentMatrix = attackedProcess.getCr();
-                break;
+            case Y  : compMatrix = attackedProc.getY();  break;
+            case CB : compMatrix = attackedProc.getCb(); break;
+            case CR : compMatrix = attackedProc.getCr(); break;
+            default : throw new IllegalStateException("Unknown component: " + component);
         }
 
-        // Extract watermark
-        BufferedImage extractedWatermark = watermarking.extract(componentMatrix,
+        BufferedImage extracted = wmInstance.extract(compMatrix,
                 originalWatermark.getWidth(), originalWatermark.getHeight(), embedParams);
-
-        // Save extracted watermark
-        String extractedWatermarkPath = baseOutputPath + "_" +
-                attackType.name() + "_" + attackDescription.replace(": ", "_").replace("%", "pct") + "_extracted.png";
-
-        if (extractedWatermark != null) {
-            ImageIO.write(extractedWatermark, "png", new File(extractedWatermarkPath));
-
-            // Calculate quality metrics
-            double ber = watermarking.core.WatermarkEvaluation.calculateBER(originalWatermark, extractedWatermark);
-            double nc = watermarking.core.WatermarkEvaluation.calculateNC(originalWatermark, extractedWatermark);
-
-            // Save metrics to a log file
+        if (extracted != null) {
+            ImageIO.write(extracted, "png", new File(baseOutputPath + "_" + attackType.name() + "_" + desc + "_extracted.png"));
+            double ber = watermarking.core.WatermarkEvaluation.calculateBER(originalWatermark, extracted);
+            double nc  = watermarking.core.WatermarkEvaluation.calculateNC(originalWatermark, extracted);
             java.nio.file.Files.write(
                     java.nio.file.Paths.get("protocol-results/metrics.txt"),
-                    String.format("%s,%s,%s,%.6f,%.6f\n",
-                            testName, attackType.name(), attackDescription, ber, nc).getBytes(),
+                    String.format("%s,%s,%s,%.6f,%.6f\n", testName, attackType.name(), desc, ber, nc)
+                            .getBytes(),
                     java.nio.file.StandardOpenOption.CREATE,
-                    java.nio.file.StandardOpenOption.APPEND);
-
+                    java.nio.file.StandardOpenOption.APPEND
+            );
             Logger.info(String.format("Attack: %s, BER: %.6f, NC: %.6f",
-                    attackType.getDisplayName() + " " + attackDescription, ber, nc));
+                    attackType.getDisplayName() + " " + desc, ber, nc));
         }
     }
 
-    /**
-     * Creates a copy of a BufferedImage
-     */
-    private static BufferedImage copyImage(BufferedImage source) {
-        BufferedImage copy = new BufferedImage(
-                source.getWidth(), source.getHeight(), source.getType());
-        java.awt.Graphics2D g2d = copy.createGraphics();
-        g2d.drawImage(source, 0, 0, null);
-        g2d.dispose();
+    /** Creates a copy of a BufferedImage */
+    private static BufferedImage copyImage(BufferedImage src) {
+        BufferedImage copy = new BufferedImage(src.getWidth(), src.getHeight(), src.getType());
+        java.awt.Graphics2D g = copy.createGraphics();
+        g.drawImage(src, 0, 0, null);
+        g.dispose();
         return copy;
     }
 }
