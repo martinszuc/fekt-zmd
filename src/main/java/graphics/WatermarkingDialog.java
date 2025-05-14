@@ -8,6 +8,7 @@ import javafx.scene.control.*;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
+import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
@@ -32,23 +33,14 @@ import jpeg.Process;
 import utils.Logger;
 import watermarking.attacks.AbstractWatermarkAttack;
 import watermarking.attacks.WatermarkAttackFactory;
-import watermarking.core.AbstractWatermarking;
-import watermarking.core.WatermarkEvaluation;
-import watermarking.core.WatermarkResult;
-import watermarking.core.WatermarkTestReport;
+import watermarking.core.*;
 import watermarking.core.WatermarkingFactory;
 
 import javax.imageio.ImageIO;
-import java.awt.*;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.io.*;
+import java.util.*;
 
 /**
  * Enhanced dialog for watermarking operations with improved attack simulation UI.
@@ -165,45 +157,89 @@ public class WatermarkingDialog extends Stage {
     }
 
     /**
-     * Creates the menu bar for the watermarking dialog
+     * Creates the menu bar for the watermarking dialog,
+     * now including “Save Watermarked Image...” functionality.
      */
     private MenuBar createMenuBar() {
         MenuBar menuBar = new MenuBar();
 
         // File menu
         Menu fileMenu = new Menu("File");
+
+        // *** NEW: Save the current watermarked image to disk ***
+        MenuItem saveWatermarkedItem = new MenuItem("Save Watermarked Image...");
+        saveWatermarkedItem.setOnAction(e -> saveWatermarkedImage());
+        fileMenu.getItems().add(saveWatermarkedItem);
+
         MenuItem saveReportItem = new MenuItem("Export Test Report...");
         saveReportItem.setOnAction(e -> exportTestReport());
 
         MenuItem closeItem = new MenuItem("Close");
         closeItem.setOnAction(e -> close());
 
-        fileMenu.getItems().addAll(saveReportItem, new SeparatorMenuItem(), closeItem);
+        fileMenu.getItems().addAll(
+                new SeparatorMenuItem(),
+                saveReportItem,
+                new SeparatorMenuItem(),
+                closeItem
+        );
 
         // Watermark menu
         Menu watermarkMenu = new Menu("Watermark");
         MenuItem configureWatermarkItem = new MenuItem("Configure Watermark...");
         configureWatermarkItem.setOnAction(e -> openWatermarkConfigDialog());
-
         MenuItem loadWatermarkItem = new MenuItem("Load Watermark...");
         loadWatermarkItem.setOnAction(e -> loadWatermark());
-
         MenuItem createDefaultItem = new MenuItem("Create Default");
         createDefaultItem.setOnAction(e -> createDefaultWatermark());
-
         watermarkMenu.getItems().addAll(configureWatermarkItem, loadWatermarkItem, createDefaultItem);
 
         // Help menu
         Menu helpMenu = new Menu("Help");
         MenuItem aboutItem = new MenuItem("About");
         aboutItem.setOnAction(e -> showAboutDialog());
-
         helpMenu.getItems().add(aboutItem);
 
         // Add menus to menu bar
         menuBar.getMenus().addAll(fileMenu, watermarkMenu, helpMenu);
 
         return menuBar;
+    }
+
+    /**
+     * Opens a FileChooser and writes out the currently displayed
+     * watermarked image (if any) as a PNG.
+     */
+    private void saveWatermarkedImage() {
+        if (watermarkedProcess == null) {
+            showStatus("No watermarked image to save", "error");
+            return;
+        }
+
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Save Watermarked Image");
+        fileChooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("PNG Image (*.png)", "*.png"),
+                new FileChooser.ExtensionFilter("JPEG Image (*.jpg;*.jpeg)", "*.jpg"),
+                new FileChooser.ExtensionFilter("BMP Image (*.bmp)", "*.bmp")
+        );
+        fileChooser.setInitialFileName("watermarked_image.png");
+
+        File file = fileChooser.showSaveDialog(this);
+        if (file != null) {
+            try {
+                String fname = file.getName().toLowerCase();
+                String fmt = "png";
+                if (fname.endsWith(".jpg") || fname.endsWith(".jpeg")) fmt = "jpg";
+                else if (fname.endsWith(".bmp")) fmt = "bmp";
+                BufferedImage img = watermarkedProcess.getRGBImage();
+                ImageIO.write(img, fmt, file);
+                showStatus("Watermarked image saved: " + file.getAbsolutePath(), "success");
+            } catch (IOException ex) {
+                Logger.error("Error saving watermarked image: " + ex.getMessage());
+                showStatus("Error saving image: " + ex.getMessage(), "error");
+            }
+        }
     }
 
     private void createControls(BorderPane root) {
@@ -229,7 +265,6 @@ public class WatermarkingDialog extends Stage {
         // Create vertical separators
         Separator leftSeparator = new Separator(Orientation.VERTICAL);
         leftSeparator.setPadding(new Insets(0, 5, 0, 5));
-
         Separator rightSeparator = new Separator(Orientation.VERTICAL);
         rightSeparator.setPadding(new Insets(0, 5, 0, 5));
 
@@ -240,7 +275,8 @@ public class WatermarkingDialog extends Stage {
                 leftSeparator,
                 contentPanel,
                 rightSeparator,
-                attackControlPanel);
+                attackControlPanel
+        );
         HBox.setHgrow(contentPanel, Priority.ALWAYS);
 
         root.setCenter(mainContent);
